@@ -10,12 +10,10 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-
 import Foundation
 import NIOCore
-import NIOSSL
 import NIOHTTP1
-
+import NIOSSL
 
 extension LCLWebSocket {
     public struct Configuration: Sendable {
@@ -26,18 +24,24 @@ extension LCLWebSocket {
         var maxAccumulatedFrameSize: Int
         var writeBufferWaterMarkLow: Int {
             willSet {
-                precondition(newValue >= 1 && newValue <= writeBufferWaterMarkHigh, "writeBufferWaterMarkLow should be between 1 and writeBufferWaterMarkHigh")
+                precondition(
+                    newValue >= 1 && newValue <= writeBufferWaterMarkHigh,
+                    "writeBufferWaterMarkLow should be between 1 and writeBufferWaterMarkHigh"
+                )
             }
         }
         var writeBufferWaterMarkHigh: Int {
             willSet {
-                precondition(newValue >= writeBufferWaterMarkLow, "writeBufferWaterMarkHigh should be greater than or equal to writeBufferWaterMarkLow")
+                precondition(
+                    newValue >= writeBufferWaterMarkLow,
+                    "writeBufferWaterMarkHigh should be greater than or equal to writeBufferWaterMarkLow"
+                )
             }
         }
         var connectionTimeout: TimeAmount
         var deviceName: String?
-        var keepAliveConfiguration: AutoPingConfiguration
-        
+        var autoPingConfiguration: AutoPingConfiguration
+
         public init(
             maxFrameSize: Int = 1 << 14,
             minNonFinalFragmentSize: Int = 0,
@@ -47,8 +51,12 @@ extension LCLWebSocket {
             writeBufferQaterMarkHigh: Int = 64 * 1024,
             tlsConfiguration: TLSConfiguration? = nil,
             connectionTimeout: TimeAmount = .seconds(10),
-            keepAliveConfiguration: AutoPingConfiguration = .enabled(pingInterval: .seconds(20), pingTimeout: .seconds(20)),
-            deviceName: String? = nil) {
+            autoPingConfiguration: AutoPingConfiguration = .enabled(
+                pingInterval: .seconds(20),
+                pingTimeout: .seconds(20)
+            ),
+            deviceName: String? = nil
+        ) {
             self.tlsConfiguration = tlsConfiguration
             self.maxFrameSize = maxFrameSize
             self.minNonFinalFragmentSize = minNonFinalFragmentSize
@@ -57,7 +65,7 @@ extension LCLWebSocket {
             self.writeBufferWaterMarkLow = writeBufferWaterMarkLow
             self.writeBufferWaterMarkHigh = writeBufferQaterMarkHigh
             self.connectionTimeout = connectionTimeout
-            self.keepAliveConfiguration = keepAliveConfiguration
+            self.autoPingConfiguration = autoPingConfiguration
             self.deviceName = deviceName
         }
     }
@@ -68,14 +76,18 @@ extension LCLWebSocket.Configuration {
         var keepAlive: Bool
         var pingInterval: TimeAmount
         var pingTimeout: TimeAmount
-        
+
         internal init(keepAlive: Bool, pingInterval: TimeAmount, pingTimeout: TimeAmount) {
             self.keepAlive = keepAlive
             self.pingInterval = pingInterval
             self.pingTimeout = pingTimeout
         }
-        
-        public static let disabled: Self = AutoPingConfiguration(keepAlive: false, pingInterval: .seconds(0), pingTimeout: .seconds(0))
+
+        public static let disabled: Self = AutoPingConfiguration(
+            keepAlive: false,
+            pingInterval: .seconds(0),
+            pingTimeout: .seconds(0)
+        )
         public static func enabled(pingInterval: TimeAmount, pingTimeout: TimeAmount) -> Self {
             .init(keepAlive: true, pingInterval: pingInterval, pingTimeout: pingTimeout)
         }

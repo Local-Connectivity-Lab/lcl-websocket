@@ -10,31 +10,29 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-
 import NIOCore
 import NIOWebSocket
 
-
 final class WebSocketHandler: ChannelInboundHandler {
     typealias InboundIn = WebSocketFrame
-    
+
     private let websocket: WebSocket
     init(websocket: WebSocket) {
         self.websocket = websocket
     }
-    
+
     func channelRead(context: ChannelHandlerContext, data: NIOAny) {
         let frame = self.unwrapInboundIn(data)
         self.websocket.handleFrame(frame)
     }
-    
+
     func errorCaught(context: ChannelHandlerContext, error: any Error) {
         if let err = error as? NIOWebSocketError {
             self.websocket.close(code: WebSocketErrorCode(err), promise: nil)
         } else {
             self.websocket.close(code: .unexpectedServerError, promise: nil)
         }
-        
+
         context.fireErrorCaught(error)
     }
 }

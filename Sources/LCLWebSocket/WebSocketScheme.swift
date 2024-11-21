@@ -10,13 +10,12 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-
 import Foundation
 
 enum WebSocketScheme: String {
     case wss = "wss"
     case ws = "ws"
-    
+
     /// Indicate whether the schema should enable TLS
     ///
     /// - Returns: true if the schema is set to HTTPS; false otherwise.
@@ -33,6 +32,6 @@ enum WebSocketScheme: String {
     ///
     /// - Returns: 443 if the HTTPS schema is used; otherwise, fall back to 80.
     var defaultPort: Int {
-        return self.enableTLS ? 443 : 80
+        self.enableTLS ? 443 : 80
     }
 }

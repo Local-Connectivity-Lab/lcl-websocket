@@ -6,18 +6,19 @@ import PackageDescription
 let package = Package(
     name: "LCLWebSocket",
     platforms: [
-        .macOS(.v10_15), .iOS(.v13), .watchOS(.v4), .tvOS(.v13), .visionOS(.v1)
+        .macOS(.v10_15), .iOS(.v13), .watchOS(.v4), .tvOS(.v13), .visionOS(.v1),
     ],
     products: [
         // Products define the executables and libraries a package produces, making them visible to other packages.
         .library(
             name: "LCLWebSocket",
-            targets: ["LCLWebSocket"]),
+            targets: ["LCLWebSocket"]
+        )
     ],
     dependencies: [
         .package(url: "https://github.com/apple/swift-nio.git", from: "2.76.1"),
         .package(url: "https://github.com/apple/swift-nio-transport-services.git", from: "1.23.0"),
-        .package(url: "https://github.com/apple/swift-nio-ssl.git", from: "2.28.0")
+        .package(url: "https://github.com/apple/swift-nio-ssl.git", from: "2.28.0"),
     ],
     targets: [
         // Targets are the basic building blocks of a package, defining a module or a test suite.
@@ -30,12 +31,13 @@ let package = Package(
                 .product(name: "NIOWebSocket", package: "swift-nio"),
                 .product(name: "NIOHTTP1", package: "swift-nio"),
                 .product(name: "NIOSSL", package: "swift-nio-ssl"),
-                .product(name: "NIOTransportServices", package: "swift-nio-transport-services")
+                .product(name: "NIOTransportServices", package: "swift-nio-transport-services"),
             ]
         ),
         .testTarget(
             name: "LCLWebSocketTests",
-            dependencies: ["LCLWebSocket"]),
-        .executableTarget(name: "Client", dependencies: ["LCLWebSocket"])
+            dependencies: ["LCLWebSocket"]
+        ),
+        .executableTarget(name: "Client", dependencies: ["LCLWebSocket"]),
     ]
 )
