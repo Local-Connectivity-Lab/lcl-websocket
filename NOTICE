@@ -30,3 +30,12 @@ This product contains check-swift-format.sh from swiftlang/github-workflows.
     * https://github.com/swiftlang/github-workflows
 
 ---
+
+This product contains .swift-format from apple/swift-nio.
+
+  * LICENSE (Apache License 2.0):
+    * https://github.com/apple/swift-nio/blob/main/LICENSE.txt
+  * HOMEPAGE:
+    * https://github.com/apple/swift-nio
+
+---
