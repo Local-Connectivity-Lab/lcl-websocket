@@ -12,7 +12,8 @@ if #available(macOS 13, *) {
     let config = LCLWebSocket.Configuration(
         autoPingConfiguration: .enabled(pingInterval: .seconds(4), pingTimeout: .seconds(10))
     )
-    let client = WebSocketClient()
+    let elg = LCLWebSocket.defaultEventloopGroup
+    let client = WebSocketClient(on: elg)
 
     let websocket = try client.connect(to: "ws://127.0.0.1:8080", config: config).wait()
     let promise = websocket.channel.eventLoop.makePromise(of: Void.self)

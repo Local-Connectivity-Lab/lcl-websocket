@@ -21,6 +21,8 @@ public enum LCLWebSocketError: Error {
     case websocketAlreadyClosed
     case websocketTimeout
     case invalidURL
+    case invalidDevice
+    case tlsInitializationFailed
 }
 
 extension LCLWebSocketError: CustomStringConvertible {
@@ -42,6 +44,10 @@ extension LCLWebSocketError: CustomStringConvertible {
             return "WebSocket timeout"
         case .invalidURL:
             return "Invalid URL"
+        case .invalidDevice:
+            return "Invalid Device"
+        case .tlsInitializationFailed:
+            return "TLS initialization failed"
         }
     }
 }

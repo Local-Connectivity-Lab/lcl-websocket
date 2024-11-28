@@ -11,6 +11,7 @@
 //
 
 import Foundation
+import NIOSSL
 
 enum WebSocketScheme: String {
     case wss = "wss"
@@ -33,5 +34,9 @@ enum WebSocketScheme: String {
     /// - Returns: 443 if the HTTPS schema is used; otherwise, fall back to 80.
     var defaultPort: Int {
         self.enableTLS ? 443 : 80
+    }
+    
+    var defaultTlsConfig: TLSConfiguration? {
+        self.enableTLS ? TLSConfiguration.makeClientConfiguration() : nil
     }
 }
