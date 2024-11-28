@@ -121,7 +121,7 @@ public final class WebSocketClient: Sendable {
                     let device = findDevice(with: configuration.deviceName!, protocol: resolvedAddress.protocol)
                 {
                     do {
-                        try bindDevice(device, on: channel)
+                        try bindTo(device: device, on: channel)
                     } catch {
                         return channel.eventLoop.makeFailedFuture(error)
                     }

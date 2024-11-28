@@ -13,7 +13,7 @@
 import Foundation
 import NIOCore
 
-internal func bindDevice(_ device: NIONetworkDevice, on channel: Channel) throws {
+internal func bindTo(device: NIONetworkDevice, on channel: Channel) throws {
     #if canImport(Darwin)
     switch device.address {
     case .v4:
