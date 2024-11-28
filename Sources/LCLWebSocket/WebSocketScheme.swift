@@ -35,8 +35,8 @@ enum WebSocketScheme: String {
     var defaultPort: Int {
         self.enableTLS ? 443 : 80
     }
-    
-    var defaultTlsConfig: TLSConfiguration? {
+
+    var defaultTLSConfig: TLSConfiguration? {
         self.enableTLS ? TLSConfiguration.makeClientConfiguration() : nil
     }
 }

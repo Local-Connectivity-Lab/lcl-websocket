@@ -18,7 +18,7 @@ let package = Package(
         .package(url: "https://github.com/apple/swift-nio.git", from: "2.76.1"),
         .package(url: "https://github.com/apple/swift-nio-transport-services.git", from: "1.23.0"),
         .package(url: "https://github.com/apple/swift-nio-ssl.git", from: "2.28.0"),
-        .package(url: "https://github.com/apple/swift-nio-extras.git", from: "1.24.1")
+        .package(url: "https://github.com/apple/swift-nio-extras.git", from: "1.24.1"),
     ],
     targets: [
         .target(
@@ -29,7 +29,11 @@ let package = Package(
                 .product(name: "NIOWebSocket", package: "swift-nio"),
                 .product(name: "NIOHTTP1", package: "swift-nio"),
                 .product(name: "NIOSSL", package: "swift-nio-ssl"),
-                .product(name: "NIOTransportServices", package: "swift-nio-transport-services", condition: .when(platforms: [.macOS, .iOS, .tvOS, .watchOS, .visionOS, .macCatalyst])),
+                .product(
+                    name: "NIOTransportServices",
+                    package: "swift-nio-transport-services",
+                    condition: .when(platforms: [.macOS, .iOS, .tvOS, .watchOS, .visionOS, .macCatalyst])
+                ),
             ]
         ),
         .testTarget(

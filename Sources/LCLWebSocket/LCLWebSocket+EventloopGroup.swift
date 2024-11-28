@@ -23,7 +23,7 @@ extension LCLWebSocket {
         MultiThreadedEventLoopGroup.singleton
         #endif
     }
-    
+
     public static func makeEventLoopGroup(size: Int) -> EventLoopGroup {
         #if canImport(Network)
         if #available(macOS 10.14, iOS 12.0, tvOS 12.0, watchOS 6.0, visionOS 1.0, *) {

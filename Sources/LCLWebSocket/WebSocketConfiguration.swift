@@ -41,6 +41,8 @@ extension LCLWebSocket {
         var connectionTimeout: TimeAmount
         var deviceName: String?
         var autoPingConfiguration: AutoPingConfiguration
+        var socketSendBufferSize: Int32?
+        var socketReceiveBufferSize: Int32?
 
         public init(
             maxFrameSize: Int = 1 << 14,
@@ -55,7 +57,9 @@ extension LCLWebSocket {
                 pingInterval: .seconds(20),
                 pingTimeout: .seconds(20)
             ),
-            deviceName: String? = nil
+            deviceName: String? = nil,
+            socketSendBufferSize: Int32? = nil,
+            socketReceiveBufferSize: Int32? = nil
         ) {
             self.tlsConfiguration = tlsConfiguration
             self.maxFrameSize = maxFrameSize
@@ -67,6 +71,8 @@ extension LCLWebSocket {
             self.connectionTimeout = connectionTimeout
             self.autoPingConfiguration = autoPingConfiguration
             self.deviceName = deviceName
+            self.socketSendBufferSize = socketSendBufferSize
+            self.socketReceiveBufferSize = socketReceiveBufferSize
         }
     }
 }

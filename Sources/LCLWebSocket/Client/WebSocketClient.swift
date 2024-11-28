@@ -14,8 +14,8 @@ import Foundation
 import NIOCore
 import NIOHTTP1
 import NIOPosix
-import NIOWebSocket
 import NIOSSL
+import NIOWebSocket
 
 #if os(macOS) || os(iOS) || os(tvOS) || os(watchOS) || os(visionOS)
 import NIOTransportServices
@@ -31,36 +31,44 @@ public final class WebSocketClient: Sendable {
         case websocket(Channel)
         case notUpgraded(Error?)
     }
-    
+
     private let eventloopGroup: EventLoopGroup
 
     public init(on eventloopGroup: any EventLoopGroup) {
         self.eventloopGroup = eventloopGroup
     }
-    
+
     @available(macOS 13, *)
-    public func connect(to endpoint: URL, headers: [String: String] = [:], config: LCLWebSocket.Configuration) -> EventLoopFuture<WebSocket> {
+    public func connect(
+        to endpoint: URL,
+        headers: [String: String] = [:],
+        config: LCLWebSocket.Configuration
+    ) -> EventLoopFuture<WebSocket> {
         guard let urlComponents = URLComponents(url: endpoint, resolvingAgainstBaseURL: false) else {
             return self.eventloopGroup.next().makeFailedFuture(LCLWebSocketError.invalidURL)
         }
-        
+
         return self.connect(to: endpoint, headers: headers, config: config)
     }
-    
+
     @available(macOS 13, *)
-    public func connect(to endpoint: String, headers: [String: String] = [:], config: LCLWebSocket.Configuration) -> EventLoopFuture<WebSocket> {
+    public func connect(
+        to endpoint: String,
+        headers: [String: String] = [:],
+        config: LCLWebSocket.Configuration
+    ) -> EventLoopFuture<WebSocket> {
         guard let urlComponents = URLComponents(string: endpoint) else {
             return self.eventloopGroup.next().makeFailedFuture(LCLWebSocketError.invalidURL)
         }
-        
-        return self.connect(to: urlComponents, headers: headers, config: config)
+
+        return self.connect(to: urlComponents, headers: headers, configuration: config)
     }
 
     @available(macOS 13, *)
     public func connect(
         to endpoint: URLComponents,
         headers: [String: String] = [:],
-        config: LCLWebSocket.Configuration
+        configuration: LCLWebSocket.Configuration
     ) -> EventLoopFuture<WebSocket> {
 
         guard let s = endpoint.scheme, let scheme = WebSocketScheme(rawValue: s) else {
@@ -75,7 +83,7 @@ public final class WebSocketClient: Sendable {
         let path = endpoint.path.isEmpty ? "/" : endpoint.path
         let query = endpoint.query ?? ""
         let uri = path + (query.isEmpty ? "" : "?" + query)
-        
+
         let resolvedAddress: SocketAddress
         do {
             resolvedAddress = try SocketAddress.makeAddressResolvingHost(host, port: port)
@@ -85,21 +93,43 @@ public final class WebSocketClient: Sendable {
 
         let upgradeResult = ClientBootstrap(group: self.eventloopGroup)
             .channelOption(.socketOption(.tcp_nodelay), value: 1)
-            .connectTimeout(config.connectionTimeout)
+            .connectTimeout(configuration.connectionTimeout)
             .channelInitializer { channel in
-                // bind to selected device, if any
-                if let deviceName = config.deviceName,
-                    let device = self.findDevice(with: config.deviceName!, protocol: resolvedAddress.protocol) {
+
+                if let socketSendBufferSize = configuration.socketSendBufferSize,
+                    let syncOptions = channel.syncOptions
+                {
                     do {
-                        try self.bind(to: device, on: channel)
+                        try syncOptions.setOption(.socketOption(.so_sndbuf), value: socketSendBufferSize)
                     } catch {
                         return channel.eventLoop.makeFailedFuture(error)
                     }
                 }
-                
+
+                if let socketReceiveBuffer = configuration.socketReceiveBufferSize,
+                    let syncOptions = channel.syncOptions
+                {
+                    do {
+                        try syncOptions.setOption(.socketOption(.so_rcvbuf), value: socketReceiveBuffer)
+                    } catch {
+                        return channel.eventLoop.makeFailedFuture(error)
+                    }
+                }
+
+                // bind to selected device, if any
+                if let deviceName = configuration.deviceName,
+                    let device = findDevice(with: configuration.deviceName!, protocol: resolvedAddress.protocol)
+                {
+                    do {
+                        try bindDevice(device, on: channel)
+                    } catch {
+                        return channel.eventLoop.makeFailedFuture(error)
+                    }
+                }
+
                 // enable TLS
                 if scheme.enableTLS {
-                    let tlsConfig = config.tlsConfiguration ?? scheme.defaultTlsConfig!
+                    let tlsConfig = configuration.tlsConfiguration ?? scheme.defaultTLSConfig!
                     guard let sslContext = try? NIOSSLContext(configuration: tlsConfig) else {
                         return channel.eventLoop.makeFailedFuture(LCLWebSocketError.tlsInitializationFailed)
                     }
@@ -118,12 +148,12 @@ public final class WebSocketClient: Sendable {
                         return channel.eventLoop.makeFailedFuture(error)
                     }
                 }
-                
+
                 return channel.eventLoop.makeSucceededVoidFuture()
             }.connect(to: resolvedAddress).flatMap { channel in
                 // make upgrade request
                 let upgrader = NIOTypedWebSocketClientUpgrader<WebSocketUpgradeResult>(
-                    maxFrameSize: config.maxFrameSize
+                    maxFrameSize: configuration.maxFrameSize
                 ) { channel, _ in
                     // TODO: probably need to decode the response from server to populate for more fields like extension
                     channel.eventLoop.makeCompletedFuture {
@@ -158,14 +188,14 @@ public final class WebSocketClient: Sendable {
                         configuration: .init(upgradeConfiguration: upgradeConfig)
                     )
                 } catch {
-                    return channel.eventLoop.makeCompletedFuture { .notUpgraded(nil) }
+                    return channel.eventLoop.makeCompletedFuture { .notUpgraded(error) }
                 }
             }
 
         return upgradeResult.flatMapResult { upgradeResult in
             switch upgradeResult {
             case .notUpgraded(let error):
-                
+
                 if let error = error {
                     return .failure(error)
                 }
@@ -175,17 +205,23 @@ public final class WebSocketClient: Sendable {
                 let websocket = WebSocket(
                     channel: channel,
                     type: .client,
-                    configuration: config,
+                    configuration: configuration,
                     connectionInfo: websocketConnectionInfo
                 )
                 do {
-                    try channel.syncOptions?.setOption(.writeBufferWaterMark, value: .init(low: config.writeBufferWaterMarkLow, high: config.writeBufferWaterMarkHigh))
-                    
+                    try channel.syncOptions?.setOption(
+                        .writeBufferWaterMark,
+                        value: .init(
+                            low: configuration.writeBufferWaterMarkLow,
+                            high: configuration.writeBufferWaterMarkHigh
+                        )
+                    )
+
                     try channel.pipeline.syncOperations.addHandlers([
                         NIOWebSocketFrameAggregator(
-                            minNonFinalFragmentSize: config.minNonFinalFragmentSize,
-                            maxAccumulatedFrameCount: config.maxAccumulatedFrameCount,
-                            maxAccumulatedFrameSize: config.maxAccumulatedFrameSize
+                            minNonFinalFragmentSize: configuration.minNonFinalFragmentSize,
+                            maxAccumulatedFrameCount: configuration.maxAccumulatedFrameCount,
+                            maxAccumulatedFrameSize: configuration.maxAccumulatedFrameSize
                         ),
                         WebSocketHandler(websocket: websocket),
                     ])
@@ -197,45 +233,12 @@ public final class WebSocketClient: Sendable {
             }
         }
     }
-    
+
     public func shutdown() {
         self.eventloopGroup.shutdownGracefully { error in
             if let error = error {
                 // TODO: log error
             }
         }
-    }
-    
-    private func bind(to device: NIONetworkDevice, on channel: Channel) throws {
-        #if canImport(Darwin)
-        switch device.address {
-        case .v4:
-            try channel.syncOptions?.setOption(.ipOption(.ip_bound_if), value: CInt(device.interfaceIndex))
-        case .v6:
-            try channel.syncOptions?.setOption(.ipv6Option(.ipv6_bound_if), value: CInt(device.interfaceIndex))
-        default:
-            throw LCLWebSocketError.invalidDevice
-        }
-        #elseif canImport(Glibc) || canImport(Musl)
-        return (channel as! SocketOptionProvider).setBindToDevice(device.name)
-        #endif
-    }
-    
-    private func findDevice(with deviceName: String, protocol: NIOBSDSocket.ProtocolFamily) -> NIONetworkDevice? {
-        do {
-            for device in try System.enumerateDevices() {
-                if device.name == deviceName, let address = device.address {
-                    switch (address.protocol, `protocol`) {
-                    case (.inet, .inet), (.inet6, .inet6):
-                        return device
-                    default:
-                        continue
-                    }
-                }
-            }
-        } catch {
-            // TODO: log
-        }
-        return nil
     }
 }
