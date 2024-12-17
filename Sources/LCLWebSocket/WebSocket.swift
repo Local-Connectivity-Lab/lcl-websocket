@@ -27,7 +27,7 @@ public final class WebSocket: Sendable {
     private let configuration: LCLWebSocket.Configuration
     private let state: NIOLockedValueBox<WebSocketState>
     private let timerTracker: NIOLockedValueBox<TimerTracker>
-    private let connectionInfo: ConnectionInfo
+    private let connectionInfo: ConnectionInfo?
 
     // MARK: callbacks
     private let _onPing: NIOLoopBoundBox<(@Sendable (ByteBuffer) -> Void)?>
@@ -39,7 +39,7 @@ public final class WebSocket: Sendable {
         channel: Channel,
         type: WebSocketType,
         configuration: LCLWebSocket.Configuration,
-        connectionInfo: ConnectionInfo
+        connectionInfo: ConnectionInfo?
     ) {
         self.channel = channel
         self.type = type
@@ -56,36 +56,36 @@ public final class WebSocket: Sendable {
         }
     }
 
-    public var url: String {
-        self.connectionInfo.url.description
+    public var url: String? {
+        self.connectionInfo?.url.description
     }
     public var bufferedAmount: EventLoopFuture<Int> {
         self.channel.getOption(.bufferedWritableBytes)
     }
 
     public var `protocol`: String? {
-        self.connectionInfo.protocol
+        self.connectionInfo?.protocol
     }
 
-    public func onPing(_ callback: @escaping @Sendable (ByteBuffer) -> Void) {
+    public func onPing(_ callback: (@Sendable (ByteBuffer) -> Void)?) {
         self.channel.eventLoop.execute {
             self._onPing.value = callback
         }
     }
 
-    public func onPong(_ callback: @escaping @Sendable (ByteBuffer) -> Void) {
+    public func onPong(_ callback: (@Sendable (ByteBuffer) -> Void)?) {
         self.channel.eventLoop.execute {
             self._onPong.value = callback
         }
     }
 
-    public func onText(_ callback: @escaping @Sendable (String) -> Void) {
+    public func onText(_ callback: (@Sendable (String) -> Void)?) {
         self.channel.eventLoop.execute {
             self._onText.value = callback
         }
     }
 
-    public func onBinary(_ callback: @escaping @Sendable (ByteBuffer) -> Void) {
+    public func onBinary(_ callback: (@Sendable (ByteBuffer) -> Void)?) {
         self.channel.eventLoop.execute {
             self._onBinary.value = callback
         }
@@ -137,10 +137,12 @@ public final class WebSocket: Sendable {
         // TODO: skip if already closed or closing
         if !self.channel.isActive {
             promise?.fail(LCLWebSocketError.channelNotActive)
+            print("channel is not active")
             return
         }
 
         self.state.withLockedValue { state in
+            print("websocket state: \(state)")
             switch state {
             case .closed:
                 // TODO: probably close the channel?
@@ -149,6 +151,7 @@ public final class WebSocket: Sendable {
                 state = .closed
                 promise?.succeed(())
             case .open:
+                state = .closing
                 var codeToSend = UInt16(webSocketErrorCode: code)
                 if codeToSend == 1005 || codeToSend == 1006 {
                     codeToSend = UInt16(webSocketErrorCode: .normalClosure)
@@ -300,6 +303,11 @@ public final class WebSocket: Sendable {
             // TODO: check if it already received a Close frame
             // TODO: check if the previous ping has a response
             // TODO: check if timeout occurs
+            if !self.channel.isActive {
+                print("channel is not active 111", "parent is active \(String(describing: self.channel.parent?.isActive))", "self is active: \(self.channel)")
+                repeatTask.cancel()
+                return
+            }
 
             switch self.state.withLockedValue({ $0 }) {
             case .connecting:
@@ -347,13 +355,21 @@ extension WebSocket {
         }
 
         func handleScheduledCallback(eventLoop: some EventLoop) {
-            eventLoop.execute {
-                self.websocket.close(
-                    code: .unknown(1006),
-                    reason: LCLWebSocketError.websocketTimeout.description,
-                    promise: nil
-                )
-                _ = self.timerTracker.withLockedValue { $0.removeValue(forKey: self.id) }
+            if self.websocket.channel.isActive {
+                print("channel is still active. time out! \(self.id)")
+                eventLoop.execute {
+                    print("timeout occured! \(self.id)")
+                    self.websocket.close(
+                        code: .unknown(1006),
+                        reason: LCLWebSocketError.websocketTimeout.description,
+                        promise: nil
+                    )
+                }
+            }
+            
+            _ = self.timerTracker.withLockedValue {
+                print("timer tracker size: \($0.count)")
+                return $0.removeValue(forKey: self.id)
             }
         }
     }

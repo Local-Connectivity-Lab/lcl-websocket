@@ -11,6 +11,7 @@
 //
 
 import Foundation
+import NIOConcurrencyHelpers
 import NIOCore
 import NIOHTTP1
 import NIOPosix
@@ -24,26 +25,61 @@ import Network
 
 public final class WebSocketServer: Sendable {
 
-    private enum WebSocketUpgradeResult {
-        case websocket(Channel)
-        case notUpgraded(Channel, Error?)
+    private let eventloopGroup: EventLoopGroup
+    private let serverConfiguration: WebSocketServerConfiguration
+    private let _onPing: NIOLoopBoundBox<(@Sendable (ByteBuffer) -> Void)?>
+    private let _onPong: NIOLoopBoundBox<(@Sendable (ByteBuffer) -> Void)?>
+    private let _onText: NIOLoopBoundBox<(@Sendable (String) -> Void)?>
+    private let _onBinary: NIOLoopBoundBox<(@Sendable (ByteBuffer) -> Void)?>
+
+    public init(on eventloopGroup: any EventLoopGroup, serverConfiguration: WebSocketServerConfiguration? = nil) {
+        self.eventloopGroup = eventloopGroup
+        self.serverConfiguration = serverConfiguration ?? WebSocketServerConfiguration.defaultConfiguration
+        self._onPing = .makeEmptyBox(eventLoop: eventloopGroup.any())
+        self._onPong = .makeEmptyBox(eventLoop: eventloopGroup.any())
+        self._onText = .makeEmptyBox(eventLoop: eventloopGroup.any())
+        self._onBinary = .makeEmptyBox(eventLoop: eventloopGroup.any())
     }
 
-    private let eventloopGroup: EventLoopGroup
+    // TODO: maybe not using NIOLoopBoundBox?
+    public func onPing(_ onPing: @escaping @Sendable (ByteBuffer) -> Void) {
+        self._onPing._eventLoop.execute {
+            self._onPing.value = onPing
+        }
+    }
 
-    public init(on eventloopGroup: any EventLoopGroup) {
-        self.eventloopGroup = eventloopGroup
+    public func onPong(_ onPong: @escaping @Sendable (ByteBuffer) -> Void) {
+        self._onPong._eventLoop.execute {
+            self._onPong.value = onPong
+        }
+    }
+
+    public func onText(_ onText: @escaping @Sendable (String) -> Void) {
+        self._onText._eventLoop.execute {
+            self._onText.value = onText
+        }
+    }
+
+    public func onBinary(_ onBinary: @escaping @Sendable (ByteBuffer) -> Void) {
+        self._onBinary._eventLoop.execute {
+            self._onBinary.value = onBinary
+        }
+    }
+    
+    @available(macOS 13, *)
+    public func listen(to host: String, port: Int, configuration: LCLWebSocket.Configuration) throws -> EventLoopFuture<Void> {
+        let addr = try SocketAddress(ipAddress: host, port: port)
+        return self.listen(to: addr, configuration: configuration)
     }
 
     @available(macOS 13, *)
-    public func bind(to address: SocketAddress, configuration: LCLWebSocket.Configuration) {
-        let upgradeResult = ServerBootstrap(group: eventloopGroup)
+    public func listen(to address: SocketAddress, configuration: LCLWebSocket.Configuration) -> EventLoopFuture<Void> {
+        ServerBootstrap(group: eventloopGroup)
             .serverChannelOption(.socketOption(.so_reuseaddr), value: 1)
             .serverChannelInitializer { channel in
-
+                print("parent channel: \(channel)")
                 if let socketSendBufferSize = configuration.socketSendBufferSize,
-                    let syncOptions = channel.syncOptions
-                {
+                    let syncOptions = channel.syncOptions {
                     do {
                         try syncOptions.setOption(.socketOption(.so_sndbuf), value: socketSendBufferSize)
                     } catch {
@@ -52,8 +88,7 @@ public final class WebSocketServer: Sendable {
                 }
 
                 if let socketReceiveBuffer = configuration.socketReceiveBufferSize,
-                    let syncOptions = channel.syncOptions
-                {
+                    let syncOptions = channel.syncOptions {
                     do {
                         try syncOptions.setOption(.socketOption(.so_rcvbuf), value: socketReceiveBuffer)
                     } catch {
@@ -63,8 +98,7 @@ public final class WebSocketServer: Sendable {
 
                 // bind to selected device, if any
                 if let deviceName = configuration.deviceName,
-                    let device = findDevice(with: configuration.deviceName!, protocol: address.protocol)
-                {
+                    let device = findDevice(with: deviceName, protocol: address.protocol) {
                     do {
                         try bindTo(device: device, on: channel)
                     } catch {
@@ -72,7 +106,13 @@ public final class WebSocketServer: Sendable {
                     }
                 }
 
+                return channel.eventLoop.makeSucceededVoidFuture()
+            }
+            .childChannelOption(.socketOption(.so_reuseaddr), value: 1)
+            .childChannelInitializer { channel in
                 // enable tls if configuration is provided
+                print("child channel: \(channel)")
+                print(channel.pipeline.debugDescription)
                 if let tlsConfiguration = configuration.tlsConfiguration {
                     guard let sslContext = try? NIOSSLContext(configuration: tlsConfiguration) else {
                         return channel.eventLoop.makeFailedFuture(LCLWebSocketError.tlsInitializationFailed)
@@ -85,42 +125,64 @@ public final class WebSocketServer: Sendable {
                     }
                 }
 
-                return channel.eventLoop.makeSucceededVoidFuture()
-            }
-            .childChannelInitializer { channel in
-                // TODO: refactor client/server channel initializer
-                channel.eventLoop.makeSucceededVoidFuture()
-            }
-            .bind(to: address).flatMap { channel in
-                let upgrader = NIOTypedWebSocketServerUpgrader(
+                let upgrader = NIOWebSocketServerUpgrader(
                     maxFrameSize: configuration.maxFrameSize,
-                    shouldUpgrade: { channel, httpRequestHead in
-                        // TODO: should ask client to provide the shouldUpgradeCheck
-                        channel.eventLoop.makeSucceededFuture(nil)
-                    },
+                    shouldUpgrade: self.serverConfiguration.shouldUpgrade,
                     upgradePipelineHandler: { channel, httpRequestHead in
-                        channel.eventLoop.makeCompletedFuture {
-                            WebSocketUpgradeResult.websocket(channel)
+                        let websocket = WebSocket(
+                            channel: channel,
+                            type: .server,
+                            configuration: configuration,
+                            connectionInfo: nil
+                        )
+                        self._onPing._eventLoop.execute {
+                            websocket.onPing(self._onPing.value)
+                        }
+                        self._onPong._eventLoop.execute {
+                            websocket.onPong(self._onPong.value)
+                        }
+                        self._onText._eventLoop.execute {
+                            websocket.onText(self._onText.value)
+                        }
+                        self._onBinary._eventLoop.execute {
+                            websocket.onBinary(self._onBinary.value)
+                        }
+                        do {
+                            try channel.syncOptions?.setOption(
+                                .writeBufferWaterMark,
+                                value: .init(
+                                    low: configuration.writeBufferWaterMarkLow,
+                                    high: configuration.writeBufferWaterMarkHigh
+                                )
+                            )
+                            try channel.pipeline.syncOperations.addHandlers([
+                                NIOWebSocketFrameAggregator(
+                                    minNonFinalFragmentSize: configuration.minNonFinalFragmentSize,
+                                    maxAccumulatedFrameCount: configuration.maxAccumulatedFrameCount,
+                                    maxAccumulatedFrameSize: configuration.maxAccumulatedFrameSize
+                                ),
+                                WebSocketHandler(websocket: websocket),
+                            ])
+                            print(channel.pipeline.debugDescription, channel)
+                            return channel.eventLoop.makeSucceededVoidFuture()
+                        } catch {
+                            return channel.eventLoop.makeFailedFuture(error)
                         }
                     }
                 )
 
-                let upgradeConfiguration = NIOTypedHTTPServerUpgradeConfiguration(upgraders: [upgrader]) { channel in
-                    channel.eventLoop.makeCompletedFuture {
-                        // TODO: need to reject the upgrade
-                        WebSocketUpgradeResult.notUpgraded(channel, nil)
-                    }
-                }
-
                 do {
-                    return try channel.pipeline.syncOperations.configureUpgradableHTTPServerPipeline(
-                        configuration: .init(upgradeConfiguration: upgradeConfiguration)
+                    try channel.pipeline.syncOperations.configureHTTPServerPipeline(
+                        withServerUpgrade: (upgraders: [upgrader], completionHandler: self.serverConfiguration.onUpgradeComplete)
                     )
                 } catch {
-                    return channel.eventLoop.makeCompletedFuture {
-                        WebSocketUpgradeResult.notUpgraded(channel, error)
-                    }
+                    return channel.eventLoop.makeFailedFuture(error)
                 }
+                return channel.eventLoop.makeSucceededVoidFuture()
+            }
+            .bind(to: address)
+            .flatMap { channel in
+                channel.eventLoop.makeSucceededVoidFuture()
             }
     }
 }

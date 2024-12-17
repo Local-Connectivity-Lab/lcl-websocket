@@ -48,7 +48,7 @@ public final class WebSocketClient: Sendable {
             return self.eventloopGroup.next().makeFailedFuture(LCLWebSocketError.invalidURL)
         }
 
-        return self.connect(to: endpoint, headers: headers, config: config)
+        return self.connect(to: urlComponents, headers: headers, configuration: config)
     }
 
     @available(macOS 13, *)
@@ -118,7 +118,7 @@ public final class WebSocketClient: Sendable {
 
                 // bind to selected device, if any
                 if let deviceName = configuration.deviceName,
-                    let device = findDevice(with: configuration.deviceName!, protocol: resolvedAddress.protocol)
+                    let device = findDevice(with: deviceName, protocol: resolvedAddress.protocol)
                 {
                     do {
                         try bindTo(device: device, on: channel)

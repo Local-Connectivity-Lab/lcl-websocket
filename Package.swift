@@ -19,6 +19,7 @@ let package = Package(
         .package(url: "https://github.com/apple/swift-nio-transport-services.git", from: "1.23.0"),
         .package(url: "https://github.com/apple/swift-nio-ssl.git", from: "2.28.0"),
         .package(url: "https://github.com/apple/swift-nio-extras.git", from: "1.24.1"),
+        .package(url: "https://github.com/apple/swift-log.git", from: "1.6.2"),
     ],
     targets: [
         .target(
@@ -34,6 +35,7 @@ let package = Package(
                     package: "swift-nio-transport-services",
                     condition: .when(platforms: [.macOS, .iOS, .tvOS, .watchOS, .visionOS, .macCatalyst])
                 ),
+                .product(name: "Logging", package: "swift-log"),
             ]
         ),
         .testTarget(
@@ -41,5 +43,6 @@ let package = Package(
             dependencies: ["LCLWebSocket"]
         ),
         .executableTarget(name: "Client", dependencies: ["LCLWebSocket"]),
+        .executableTarget(name: "Server", dependencies: ["LCLWebSocket"]),
     ]
 )
