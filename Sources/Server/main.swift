@@ -16,7 +16,7 @@ if #available(macOS 13, *) {
     )
     let elg = MultiThreadedEventLoopGroup.singleton
     let promise = elg.next().makePromise(of: Void.self)
-    let server = WebSocketServer(on: elg)
+    var server = WebSocketServer(on: elg)
     server.onPing { buffer in
         print("onPing: \(buffer)")
     }

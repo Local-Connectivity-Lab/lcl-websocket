@@ -23,51 +23,43 @@ import NIOWebSocket
 import Network
 #endif
 
-public final class WebSocketServer: Sendable {
+public struct WebSocketServer: Sendable {
 
     private let eventloopGroup: EventLoopGroup
     private let serverConfiguration: WebSocketServerConfiguration
-    private let _onPing: NIOLoopBoundBox<(@Sendable (ByteBuffer) -> Void)?>
-    private let _onPong: NIOLoopBoundBox<(@Sendable (ByteBuffer) -> Void)?>
-    private let _onText: NIOLoopBoundBox<(@Sendable (String) -> Void)?>
-    private let _onBinary: NIOLoopBoundBox<(@Sendable (ByteBuffer) -> Void)?>
+    private var _onPing: (@Sendable (ByteBuffer) -> Void)?
+    private var _onPong: (@Sendable (ByteBuffer) -> Void)?
+    private var _onText: (@Sendable (String) -> Void)?
+    private var _onBinary: (@Sendable (ByteBuffer) -> Void)?
 
     public init(on eventloopGroup: any EventLoopGroup, serverConfiguration: WebSocketServerConfiguration? = nil) {
         self.eventloopGroup = eventloopGroup
         self.serverConfiguration = serverConfiguration ?? WebSocketServerConfiguration.defaultConfiguration
-        self._onPing = .makeEmptyBox(eventLoop: eventloopGroup.any())
-        self._onPong = .makeEmptyBox(eventLoop: eventloopGroup.any())
-        self._onText = .makeEmptyBox(eventLoop: eventloopGroup.any())
-        self._onBinary = .makeEmptyBox(eventLoop: eventloopGroup.any())
     }
 
     // TODO: maybe not using NIOLoopBoundBox?
-    public func onPing(_ onPing: @escaping @Sendable (ByteBuffer) -> Void) {
-        self._onPing._eventLoop.execute {
-            self._onPing.value = onPing
-        }
+    public mutating func onPing(_ onPing: @escaping @Sendable (ByteBuffer) -> Void) {
+        self._onPing = onPing
     }
 
-    public func onPong(_ onPong: @escaping @Sendable (ByteBuffer) -> Void) {
-        self._onPong._eventLoop.execute {
-            self._onPong.value = onPong
-        }
+    public mutating func onPong(_ onPong: @escaping @Sendable (ByteBuffer) -> Void) {
+        self._onPong = onPong
     }
 
-    public func onText(_ onText: @escaping @Sendable (String) -> Void) {
-        self._onText._eventLoop.execute {
-            self._onText.value = onText
-        }
+    public mutating func onText(_ onText: @escaping @Sendable (String) -> Void) {
+        self._onText = onText
     }
 
-    public func onBinary(_ onBinary: @escaping @Sendable (ByteBuffer) -> Void) {
-        self._onBinary._eventLoop.execute {
-            self._onBinary.value = onBinary
-        }
+    public mutating func onBinary(_ onBinary: @escaping @Sendable (ByteBuffer) -> Void) {
+        self._onBinary = onBinary
     }
-    
+
     @available(macOS 13, *)
-    public func listen(to host: String, port: Int, configuration: LCLWebSocket.Configuration) throws -> EventLoopFuture<Void> {
+    public func listen(
+        to host: String,
+        port: Int,
+        configuration: LCLWebSocket.Configuration
+    ) throws -> EventLoopFuture<Void> {
         let addr = try SocketAddress(ipAddress: host, port: port)
         return self.listen(to: addr, configuration: configuration)
     }
@@ -79,7 +71,8 @@ public final class WebSocketServer: Sendable {
             .serverChannelInitializer { channel in
                 print("parent channel: \(channel)")
                 if let socketSendBufferSize = configuration.socketSendBufferSize,
-                    let syncOptions = channel.syncOptions {
+                    let syncOptions = channel.syncOptions
+                {
                     do {
                         try syncOptions.setOption(.socketOption(.so_sndbuf), value: socketSendBufferSize)
                     } catch {
@@ -88,7 +81,8 @@ public final class WebSocketServer: Sendable {
                 }
 
                 if let socketReceiveBuffer = configuration.socketReceiveBufferSize,
-                    let syncOptions = channel.syncOptions {
+                    let syncOptions = channel.syncOptions
+                {
                     do {
                         try syncOptions.setOption(.socketOption(.so_rcvbuf), value: socketReceiveBuffer)
                     } catch {
@@ -98,7 +92,8 @@ public final class WebSocketServer: Sendable {
 
                 // bind to selected device, if any
                 if let deviceName = configuration.deviceName,
-                    let device = findDevice(with: deviceName, protocol: address.protocol) {
+                    let device = findDevice(with: deviceName, protocol: address.protocol)
+                {
                     do {
                         try bindTo(device: device, on: channel)
                     } catch {
@@ -135,18 +130,10 @@ public final class WebSocketServer: Sendable {
                             configuration: configuration,
                             connectionInfo: nil
                         )
-                        self._onPing._eventLoop.execute {
-                            websocket.onPing(self._onPing.value)
-                        }
-                        self._onPong._eventLoop.execute {
-                            websocket.onPong(self._onPong.value)
-                        }
-                        self._onText._eventLoop.execute {
-                            websocket.onText(self._onText.value)
-                        }
-                        self._onBinary._eventLoop.execute {
-                            websocket.onBinary(self._onBinary.value)
-                        }
+                        websocket.onPing(self._onPing)
+                        websocket.onPong(self._onPong)
+                        websocket.onText(self._onText)
+                        websocket.onBinary(self._onBinary)
                         do {
                             try channel.syncOptions?.setOption(
                                 .writeBufferWaterMark,
@@ -173,7 +160,9 @@ public final class WebSocketServer: Sendable {
 
                 do {
                     try channel.pipeline.syncOperations.configureHTTPServerPipeline(
-                        withServerUpgrade: (upgraders: [upgrader], completionHandler: self.serverConfiguration.onUpgradeComplete)
+                        withServerUpgrade: (
+                            upgraders: [upgrader], completionHandler: self.serverConfiguration.onUpgradeComplete
+                        )
                     )
                 } catch {
                     return channel.eventLoop.makeFailedFuture(error)

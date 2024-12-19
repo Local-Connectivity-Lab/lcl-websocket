@@ -11,6 +11,7 @@
 //
 
 import Foundation
+import Logging
 import NIOCore
 import NIOHTTP1
 import NIOPosix
@@ -25,17 +26,45 @@ import NIOTransportServices
 import Network
 #endif
 
-public final class WebSocketClient: Sendable {
+public struct WebSocketClient: Sendable, LCLWebSocketListenable {
 
     private enum WebSocketUpgradeResult {
         case websocket(Channel)
         case notUpgraded(Error?)
     }
 
-    private let eventloopGroup: EventLoopGroup
+    public let eventloopGroup: any EventLoopGroup
+
+    // MARK: callbacks
+    private var _onOpen: (@Sendable (WebSocket) -> Void)?
+    private var _onPing: (@Sendable (ByteBuffer) -> Void)?
+    private var _onPong: (@Sendable (ByteBuffer) -> Void)?
+    private var _onText: (@Sendable (String) -> Void)?
+    private var _onBinary: (@Sendable (ByteBuffer) -> Void)?
+    private var _onError: (@Sendable (Error) -> Void)?
 
     public init(on eventloopGroup: any EventLoopGroup) {
         self.eventloopGroup = eventloopGroup
+    }
+
+    public mutating func onOpen(_ callback: (@Sendable (WebSocket) -> Void)?) {
+        self._onOpen = callback
+    }
+
+    public mutating func onPing(_ callback: (@Sendable (ByteBuffer) -> Void)?) {
+        self._onPing = callback
+    }
+
+    public mutating func onPong(_ callback: (@Sendable (ByteBuffer) -> Void)?) {
+        self._onPong = callback
+    }
+
+    public mutating func onText(_ callback: (@Sendable (String) -> Void)?) {
+        self._onText = callback
+    }
+
+    public mutating func onBinary(_ callback: (@Sendable (ByteBuffer) -> Void)?) {
+        self._onBinary = callback
     }
 
     @available(macOS 13, *)
@@ -43,7 +72,7 @@ public final class WebSocketClient: Sendable {
         to endpoint: URL,
         headers: [String: String] = [:],
         config: LCLWebSocket.Configuration
-    ) -> EventLoopFuture<WebSocket> {
+    ) -> EventLoopFuture<Void> {
         guard let urlComponents = URLComponents(url: endpoint, resolvingAgainstBaseURL: false) else {
             return self.eventloopGroup.next().makeFailedFuture(LCLWebSocketError.invalidURL)
         }
@@ -56,7 +85,7 @@ public final class WebSocketClient: Sendable {
         to endpoint: String,
         headers: [String: String] = [:],
         config: LCLWebSocket.Configuration
-    ) -> EventLoopFuture<WebSocket> {
+    ) -> EventLoopFuture<Void> {
         guard let urlComponents = URLComponents(string: endpoint) else {
             return self.eventloopGroup.next().makeFailedFuture(LCLWebSocketError.invalidURL)
         }
@@ -69,14 +98,13 @@ public final class WebSocketClient: Sendable {
         to endpoint: URLComponents,
         headers: [String: String] = [:],
         configuration: LCLWebSocket.Configuration
-    ) -> EventLoopFuture<WebSocket> {
-
+    ) -> EventLoopFuture<Void> {
         guard let s = endpoint.scheme, let scheme = WebSocketScheme(rawValue: s) else {
-            return self.eventloopGroup.next().makeFailedFuture(LCLWebSocketError.invalidURL)
+            return self.eventloopGroup.any().makeFailedFuture(LCLWebSocketError.invalidURL)
         }
 
         guard let host = endpoint.host else {
-            return self.eventloopGroup.next().makeFailedFuture(LCLWebSocketError.invalidURL)
+            return self.eventloopGroup.any().makeFailedFuture(LCLWebSocketError.invalidURL)
         }
 
         let port = endpoint.port ?? scheme.defaultPort
@@ -88,14 +116,13 @@ public final class WebSocketClient: Sendable {
         do {
             resolvedAddress = try SocketAddress.makeAddressResolvingHost(host, port: port)
         } catch {
-            return self.eventloopGroup.next().makeFailedFuture(error)
+            return self.eventloopGroup.any().makeFailedFuture(LCLWebSocketError.invalidURL)
         }
 
         let upgradeResult = ClientBootstrap(group: self.eventloopGroup)
             .channelOption(.socketOption(.tcp_nodelay), value: 1)
             .connectTimeout(configuration.connectionTimeout)
             .channelInitializer { channel in
-
                 if let socketSendBufferSize = configuration.socketSendBufferSize,
                     let syncOptions = channel.syncOptions
                 {
@@ -192,14 +219,14 @@ public final class WebSocketClient: Sendable {
                 }
             }
 
-        return upgradeResult.flatMapResult { upgradeResult in
+        return upgradeResult.flatMap { upgradeResult in
             switch upgradeResult {
             case .notUpgraded(let error):
-
                 if let error = error {
-                    return .failure(error)
+                    return self.eventloopGroup.any().makeFailedFuture(error)
+                } else {
+                    return self.eventloopGroup.any().makeFailedFuture(LCLWebSocketError.notUpgraded)
                 }
-                return .failure(LCLWebSocketError.notUpgraded)
             case .websocket(let channel):
                 let websocketConnectionInfo = WebSocket.ConnectionInfo(url: endpoint)
                 let websocket = WebSocket(
@@ -208,6 +235,12 @@ public final class WebSocketClient: Sendable {
                     configuration: configuration,
                     connectionInfo: websocketConnectionInfo
                 )
+                websocket.onPing(self._onPing)
+                websocket.onPong(self._onPong)
+                websocket.onText(self._onText)
+                websocket.onBinary(self._onBinary)
+                websocket.onError(self._onError)
+
                 do {
                     try channel.syncOptions?.setOption(
                         .writeBufferWaterMark,
@@ -226,10 +259,11 @@ public final class WebSocketClient: Sendable {
                         WebSocketHandler(websocket: websocket),
                     ])
                     print(channel.pipeline.debugDescription)
+                    self._onOpen?(websocket)
                 } catch {
-                    return .failure(error)
+                    return channel.eventLoop.makeFailedFuture(error)
                 }
-                return .success(websocket)
+                return channel.eventLoop.makeSucceededVoidFuture()
             }
         }
     }
@@ -237,7 +271,7 @@ public final class WebSocketClient: Sendable {
     public func shutdown() {
         self.eventloopGroup.shutdownGracefully { error in
             if let error = error {
-                // TODO: log error
+                logger.error("Error shutting down WebSocketClient: \(error)")
             }
         }
     }
