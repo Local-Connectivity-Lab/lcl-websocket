@@ -28,9 +28,7 @@ if #available(macOS 13, *) {
     }
 
     let addr = try SocketAddress.makeAddressResolvingHost("127.0.0.1", port: 8080)
-
-    try server.listen(to: addr, configuration: config).wait()
-
+    server.listen(to: addr, configuration: config)
     try promise.futureResult.wait()
 } else {
     // Fallback on earlier versions
