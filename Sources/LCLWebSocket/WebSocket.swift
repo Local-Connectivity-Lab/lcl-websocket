@@ -30,10 +30,10 @@ public final class WebSocket: Sendable {
     private let connectionInfo: ConnectionInfo?
 
     // MARK: callbacks
-    private let _onPing: NIOLoopBoundBox<(@Sendable (ByteBuffer) -> Void)?>
-    private let _onPong: NIOLoopBoundBox<(@Sendable (ByteBuffer) -> Void)?>
-    private let _onText: NIOLoopBoundBox<(@Sendable (String) -> Void)?>
-    private let _onBinary: NIOLoopBoundBox<(@Sendable (ByteBuffer) -> Void)?>
+    private let _onPing: NIOLoopBoundBox<(@Sendable (WebSocket, ByteBuffer) -> Void)?>
+    private let _onPong: NIOLoopBoundBox<(@Sendable (WebSocket, ByteBuffer) -> Void)?>
+    private let _onText: NIOLoopBoundBox<(@Sendable (WebSocket, String) -> Void)?>
+    private let _onBinary: NIOLoopBoundBox<(@Sendable (WebSocket, ByteBuffer) -> Void)?>
 
     // TODO: change: Invoked when both peers have indicated that no more messages will be transmitted and the connection has been successfully released. No further calls to this listener will be made.
     private let _onClosing: NIOLoopBoundBox<(@Sendable () -> Void)?>
@@ -81,25 +81,25 @@ public final class WebSocket: Sendable {
         self.connectionInfo?.protocol
     }
 
-    func onPing(_ callback: (@Sendable (ByteBuffer) -> Void)?) {
+    func onPing(_ callback: (@Sendable (WebSocket, ByteBuffer) -> Void)?) {
         self.channel.eventLoop.execute {
             self._onPing.value = callback
         }
     }
 
-    func onPong(_ callback: (@Sendable (ByteBuffer) -> Void)?) {
+    func onPong(_ callback: (@Sendable (WebSocket, ByteBuffer) -> Void)?) {
         self.channel.eventLoop.execute {
             self._onPong.value = callback
         }
     }
 
-    func onText(_ callback: (@Sendable (String) -> Void)?) {
+    func onText(_ callback: (@Sendable (WebSocket, String) -> Void)?) {
         self.channel.eventLoop.execute {
             self._onText.value = callback
         }
     }
 
-    func onBinary(_ callback: (@Sendable (ByteBuffer) -> Void)?) {
+    func onBinary(_ callback: (@Sendable (WebSocket, ByteBuffer) -> Void)?) {
         self.channel.eventLoop.execute {
             self._onBinary.value = callback
         }
@@ -137,20 +137,25 @@ public final class WebSocket: Sendable {
     ) {
         // TODO: if the channel is not active, abort the operation
         if !self.channel.isActive {
+            print("channel is not active anymore")
             promise?.fail(LCLWebSocketError.channelNotActive)
             return
         }
 
-        switch self.state.withLockedValue({ $0 }) {
-        case .open:
+        switch (self.state.withLockedValue({ $0 }), opcode) {
+        case (.open, _), (.closing, .connectionClose):
             let frame = WebSocketFrame(
                 fin: fin,
                 opcode: opcode,
                 maskKey: self.makeMaskingKey(),
                 data: buffer
             )
+            print("sent: \(frame)")
             self.channel.writeAndFlush(frame, promise: promise)
+        case (.closed, _), (.closing, _):
+            print("Connection is already closed. Should not send any more frames")
         default:
+            print("websocket is not in connected state")
             promise?.fail(LCLWebSocketError.websocketNotConnected)
             self.onError(error: LCLWebSocketError.websocketNotConnected)
         }
@@ -175,7 +180,7 @@ public final class WebSocket: Sendable {
         if !self.channel.isActive {
             promise?.fail(LCLWebSocketError.channelNotActive)
             self.onError(error: LCLWebSocketError.channelNotActive)
-            print("channel is not active")
+            print("channel is not active3213123")
             return
         }
 
@@ -193,18 +198,18 @@ public final class WebSocket: Sendable {
                 codeToSend = UInt16(webSocketErrorCode: .normalClosure)
             }
 
-            var buffer = channel.allocator.buffer(capacity: 125)
+            var buffer = channel.allocator.buffer(capacity: reason == nil ? 2 : 125)
             buffer.writeInteger(codeToSend)
 
             if let reason = reason {
-                guard reason.utf8.count <= 123 else {
+                if reason.utf8.count > 123  {
                     promise?.fail(LCLWebSocketError.closeReasonTooLong)
-                    return
+                } else {
+                    buffer.writeString(reason)
                 }
-                buffer.writeString(reason)
             }
 
-            let frame = WebSocketFrame(fin: true, opcode: .connectionClose, data: buffer)
+            let frame = WebSocketFrame(fin: true, opcode: .connectionClose, maskKey: self.makeMaskingKey(), data: buffer)
             self.channel.writeAndFlush(frame, promise: promise)
         default:
             promise?.fail(LCLWebSocketError.channelNotActive)
@@ -276,7 +281,7 @@ public final class WebSocket: Sendable {
             }
 
             self._onBinary._eventLoop.execute {
-                self._onBinary.value?(data)
+                self._onBinary.value?(self, data)
             }
         case .text:
             var data = frame.data
@@ -284,7 +289,7 @@ public final class WebSocket: Sendable {
                 data.webSocketUnmask(maskKey)
             }
             self._onText._eventLoop.execute {
-                self._onText.value?(data.readString(length: data.readableBytes) ?? "")
+                self._onText.value?(self, data.readString(length: data.readableBytes) ?? "")
             }
         case .connectionClose:
             // if a previous close frame is received
@@ -305,12 +310,15 @@ public final class WebSocket: Sendable {
                 // should be filtered by the first if condition
                 ()
             default:
+                print("will close the connection")
                 self.state.withLockedValue { $0 = .closing }
                 self._onClosing._eventLoop.execute {
                     self._onClosing.value?()
                 }
                 self.send(frame.data, opcode: .connectionClose, promise: nil)
+//                self.channel.close(mode: .all, promise: nil)
                 self.state.withLockedValue { $0 = .closed }
+                print("connection closed")
                 self._onClosed._eventLoop.execute {
                     self._onClosed.value?()
                 }
@@ -318,11 +326,10 @@ public final class WebSocket: Sendable {
         case .continuation:
             preconditionFailure("continuation frame is filtered by swiftnio")
         case .ping:
-            // TODO:
             if frame.fin {
                 let unmaskedData = frame.unmaskedData
                 self.pong(data: unmaskedData)
-                self._onPing.value?(unmaskedData)
+                self._onPing.value?(self, unmaskedData)
             } else {
                 // error: control frame should not be fragmented
                 onError(error: LCLWebSocketError.controlFrameShouldNotBeFragmented)
@@ -336,7 +343,7 @@ public final class WebSocket: Sendable {
             if frame.fin {
                 // if there is no previous ping, unsolicited, a reponse is not expected
                 var unmaskedData = frame.unmaskedData
-                self._onPong.value?(unmaskedData)
+                self._onPong.value?(self, unmaskedData)
                 if frame.length == WebSocket.pingIDLength {
                     print("readable pong bytes: \(unmaskedData.readableBytes)")
                     let id = unmaskedData.readString(length: unmaskedData.readableBytes)

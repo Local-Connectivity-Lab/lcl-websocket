@@ -33,6 +33,7 @@ final class WebSocketHandler: ChannelInboundHandler {
             self.websocket.close(code: .unexpectedServerError, promise: nil)
         }
 
+        context.close(mode: .all, promise: nil)
         context.fireErrorCaught(error)
     }
 }

@@ -23,6 +23,7 @@ public enum LCLWebSocketError: Error {
     case invalidURL
     case invalidDevice
     case tlsInitializationFailed
+    case connectionClosedAlready
 }
 
 extension LCLWebSocketError: CustomStringConvertible {
@@ -48,6 +49,8 @@ extension LCLWebSocketError: CustomStringConvertible {
             return "Invalid Device"
         case .tlsInitializationFailed:
             return "TLS initialization failed"
+        case .connectionClosedAlready:
+            return "Connection closed already"
         }
     }
 }

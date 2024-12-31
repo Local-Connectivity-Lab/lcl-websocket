@@ -32,10 +32,10 @@ public struct WebSocketServer: Sendable {
 
     private let eventloopGroup: EventLoopGroup
     private let serverConfiguration: WebSocketServerConfiguration
-    private var _onPing: (@Sendable (ByteBuffer) -> Void)?
-    private var _onPong: (@Sendable (ByteBuffer) -> Void)?
-    private var _onText: (@Sendable (String) -> Void)?
-    private var _onBinary: (@Sendable (ByteBuffer) -> Void)?
+    private var _onPing: (@Sendable (WebSocket, ByteBuffer) -> Void)?
+    private var _onPong: (@Sendable (WebSocket, ByteBuffer) -> Void)?
+    private var _onText: (@Sendable (WebSocket, String) -> Void)?
+    private var _onBinary: (@Sendable (WebSocket, ByteBuffer) -> Void)?
 
     public init(on eventloopGroup: any EventLoopGroup, serverConfiguration: WebSocketServerConfiguration? = nil) {
         self.eventloopGroup = eventloopGroup
@@ -43,19 +43,19 @@ public struct WebSocketServer: Sendable {
     }
 
     // TODO: maybe not using NIOLoopBoundBox?
-    public mutating func onPing(_ onPing: @escaping @Sendable (ByteBuffer) -> Void) {
+    public mutating func onPing(_ onPing: @escaping @Sendable (WebSocket, ByteBuffer) -> Void) {
         self._onPing = onPing
     }
 
-    public mutating func onPong(_ onPong: @escaping @Sendable (ByteBuffer) -> Void) {
+    public mutating func onPong(_ onPong: @escaping @Sendable (WebSocket, ByteBuffer) -> Void) {
         self._onPong = onPong
     }
 
-    public mutating func onText(_ onText: @escaping @Sendable (String) -> Void) {
+    public mutating func onText(_ onText: @escaping @Sendable (WebSocket, String) -> Void) {
         self._onText = onText
     }
 
-    public mutating func onBinary(_ onBinary: @escaping @Sendable (ByteBuffer) -> Void) {
+    public mutating func onBinary(_ onBinary: @escaping @Sendable (WebSocket, ByteBuffer) -> Void) {
         self._onBinary = onBinary
     }
 

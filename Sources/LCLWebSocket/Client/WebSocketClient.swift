@@ -17,6 +17,7 @@ import NIOHTTP1
 import NIOPosix
 import NIOSSL
 import NIOWebSocket
+import NIOHTTP1
 
 #if canImport(Network)
 import NIOTransportServices
@@ -34,10 +35,10 @@ public struct WebSocketClient: Sendable, LCLWebSocketListenable {
 
     // MARK: callbacks
     private var _onOpen: (@Sendable (WebSocket) -> Void)?
-    private var _onPing: (@Sendable (ByteBuffer) -> Void)?
-    private var _onPong: (@Sendable (ByteBuffer) -> Void)?
-    private var _onText: (@Sendable (String) -> Void)?
-    private var _onBinary: (@Sendable (ByteBuffer) -> Void)?
+    private var _onPing: (@Sendable (WebSocket, ByteBuffer) -> Void)?
+    private var _onPong: (@Sendable (WebSocket, ByteBuffer) -> Void)?
+    private var _onText: (@Sendable (WebSocket, String) -> Void)?
+    private var _onBinary: (@Sendable (WebSocket, ByteBuffer) -> Void)?
     private var _onError: (@Sendable (Error) -> Void)?
 
     public init(on eventloopGroup: any EventLoopGroup) {
@@ -48,19 +49,19 @@ public struct WebSocketClient: Sendable, LCLWebSocketListenable {
         self._onOpen = callback
     }
 
-    public mutating func onPing(_ callback: (@Sendable (ByteBuffer) -> Void)?) {
+    public mutating func onPing(_ callback: (@Sendable (WebSocket, ByteBuffer) -> Void)?) {
         self._onPing = callback
     }
 
-    public mutating func onPong(_ callback: (@Sendable (ByteBuffer) -> Void)?) {
+    public mutating func onPong(_ callback: (@Sendable (WebSocket, ByteBuffer) -> Void)?) {
         self._onPong = callback
     }
 
-    public mutating func onText(_ callback: (@Sendable (String) -> Void)?) {
+    public mutating func onText(_ callback: (@Sendable (WebSocket, String) -> Void)?) {
         self._onText = callback
     }
 
-    public mutating func onBinary(_ callback: (@Sendable (ByteBuffer) -> Void)?) {
+    public mutating func onBinary(_ callback: (@Sendable (WebSocket, ByteBuffer) -> Void)?) {
         self._onBinary = callback
     }
 
@@ -113,7 +114,7 @@ public struct WebSocketClient: Sendable, LCLWebSocketListenable {
         let query = endpoint.query ?? ""
         let uri = path + (query.isEmpty ? "" : "?" + query)
         
-        logger.debug("host: \(host)\tport: \(port)\turi: \(uri)")
+        logger.debug("host: \(host) port: \(port) uri: \(uri)")
 
         let resolvedAddress: SocketAddress
         do {
@@ -199,10 +200,12 @@ public struct WebSocketClient: Sendable, LCLWebSocketListenable {
         let upgradeResult = makeBootstrapAndConnect().flatMap { channel in
                 // make upgrade request
                 let upgrader = NIOTypedWebSocketClientUpgrader<WebSocketUpgradeResult>(
-                    maxFrameSize: configuration.maxFrameSize
-                ) { channel, _ in
+                    maxFrameSize: configuration.maxFrameSize,
+                    enableAutomaticErrorHandling: false
+                ) { channel, httpResponse in
                     // TODO: probably need to decode the response from server to populate for more fields like extension
-                    channel.eventLoop.makeCompletedFuture {
+                    print(httpResponse)
+                    return channel.eventLoop.makeCompletedFuture {
                         WebSocketUpgradeResult.websocket(channel)
                     }
                 }
@@ -231,8 +234,11 @@ public struct WebSocketClient: Sendable, LCLWebSocketListenable {
                 }
 
                 do {
+                    var httpClientPipelineConfiguration = NIOUpgradableHTTPClientPipelineConfiguration(upgradeConfiguration: upgradeConfig)
+                    httpClientPipelineConfiguration.leftOverBytesStrategy = configuration.leftoverBytesStrategy
+                    
                     return try channel.pipeline.syncOperations.configureUpgradableHTTPClientPipeline(
-                        configuration: .init(upgradeConfiguration: upgradeConfig)
+                        configuration: httpClientPipelineConfiguration
                     )
                 } catch {
                     return channel.eventLoop.makeCompletedFuture { .notUpgraded(error) }

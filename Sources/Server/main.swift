@@ -17,13 +17,13 @@ if #available(macOS 13, *) {
     let elg = MultiThreadedEventLoopGroup.singleton
     let promise = elg.next().makePromise(of: Void.self)
     var server = WebSocketServer(on: elg)
-    server.onPing { buffer in
+    server.onPing { ws, buffer in
         print("onPing: \(buffer)")
     }
-    server.onPong { buffer in
+    server.onPong { ws, buffer in
         print("onPong: \(buffer)")
     }
-    server.onBinary { buffer in
+    server.onBinary { ws, buffer in
         print("onBinary: \(buffer).\n \(buffer.readableBytes) bytes")
     }
 

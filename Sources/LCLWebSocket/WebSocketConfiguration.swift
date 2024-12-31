@@ -43,6 +43,7 @@ extension LCLWebSocket {
         var autoPingConfiguration: AutoPingConfiguration
         var socketSendBufferSize: Int32?
         var socketReceiveBufferSize: Int32?
+        var leftoverBytesStrategy: RemoveAfterUpgradeStrategy
 
         public init(
             maxFrameSize: Int = 1 << 14,
@@ -57,6 +58,7 @@ extension LCLWebSocket {
                 pingInterval: .seconds(20),
                 pingTimeout: .seconds(20)
             ),
+            leftoverBytesStrategy: RemoveAfterUpgradeStrategy = .dropBytes,
             deviceName: String? = nil,
             socketSendBufferSize: Int32? = nil,
             socketReceiveBufferSize: Int32? = nil
@@ -73,6 +75,7 @@ extension LCLWebSocket {
             self.deviceName = deviceName
             self.socketSendBufferSize = socketSendBufferSize
             self.socketReceiveBufferSize = socketReceiveBufferSize
+            self.leftoverBytesStrategy = leftoverBytesStrategy
         }
     }
 }
