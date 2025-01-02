@@ -11,6 +11,7 @@
 //
 
 import Foundation
+import NIOWebSocket
 
 public enum LCLWebSocketError: Error {
     case notUpgraded
@@ -24,6 +25,7 @@ public enum LCLWebSocketError: Error {
     case invalidDevice
     case tlsInitializationFailed
     case connectionClosedAlready
+    case unknownOpCode(WebSocketOpcode)
 }
 
 extension LCLWebSocketError: CustomStringConvertible {
@@ -51,6 +53,8 @@ extension LCLWebSocketError: CustomStringConvertible {
             return "TLS initialization failed"
         case .connectionClosedAlready:
             return "Connection closed already"
+        case .unknownOpCode(let code):
+            return "Unknown opcode \(code)"
         }
     }
 }

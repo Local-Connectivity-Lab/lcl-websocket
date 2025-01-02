@@ -82,45 +82,31 @@ public final class WebSocket: Sendable {
     }
 
     func onPing(_ callback: (@Sendable (WebSocket, ByteBuffer) -> Void)?) {
-        self.channel.eventLoop.execute {
-            self._onPing.value = callback
-        }
+        self._onPing.value = callback
     }
 
     func onPong(_ callback: (@Sendable (WebSocket, ByteBuffer) -> Void)?) {
-        self.channel.eventLoop.execute {
-            self._onPong.value = callback
-        }
+        self._onPong.value = callback
     }
 
     func onText(_ callback: (@Sendable (WebSocket, String) -> Void)?) {
-        self.channel.eventLoop.execute {
-            self._onText.value = callback
-        }
+        self._onText.value = callback
     }
 
     func onBinary(_ callback: (@Sendable (WebSocket, ByteBuffer) -> Void)?) {
-        self.channel.eventLoop.execute {
-            self._onBinary.value = callback
-        }
+        self._onBinary.value = callback
     }
 
     func onClosing(_ callback: (@Sendable () -> Void)?) {
-        self.channel.eventLoop.execute {
-            self._onClosing.value = callback
-        }
+        self._onClosing.value = callback
     }
 
     func onClosed(_ callback: (@Sendable () -> Void)?) {
-        self.channel.eventLoop.execute {
-            self._onClosed.value = callback
-        }
+        self._onClosed.value = callback
     }
 
     func onError(_ callback: (@Sendable (Error) -> Void)?) {
-        self.channel.eventLoop.execute {
-            self._onError.value = callback
-        }
+        self._onError.value = callback
     }
 
     private func onError(error: (any Error)) {
@@ -257,8 +243,8 @@ public final class WebSocket: Sendable {
         case .open:
             self.send(data, opcode: .pong, promise: promise)
         case .closing, .closed:
-            promise?.fail(LCLWebSocketError.websocketAlreadyClosed)
-            self.onError(error: LCLWebSocketError.websocketAlreadyClosed)
+            promise?.succeed()
+            logger.info("WebSocket Connection is already closed. No further pong frames will be sent.")
         default:
             promise?.fail(LCLWebSocketError.websocketNotConnected)
             self.onError(error: LCLWebSocketError.websocketNotConnected)
@@ -280,17 +266,13 @@ public final class WebSocket: Sendable {
                 data.webSocketUnmask(maskKey)
             }
 
-            self._onBinary._eventLoop.execute {
-                self._onBinary.value?(self, data)
-            }
+            self._onBinary.value?(self, data)
         case .text:
             var data = frame.data
             if let maskKey = frame.maskKey {
                 data.webSocketUnmask(maskKey)
             }
-            self._onText._eventLoop.execute {
-                self._onText.value?(self, data.readString(length: data.readableBytes) ?? "")
-            }
+            self._onText.value?(self, data.readString(length: data.readableBytes) ?? "")
         case .connectionClose:
             // if a previous close frame is received
             // if we have sent a close frame
@@ -303,36 +285,30 @@ public final class WebSocket: Sendable {
             switch self.state.withLockedValue({ $0 }) {
             case .closing:
                 self.state.withLockedValue { $0 = .closed }
-                self._onClosed._eventLoop.execute {
-                    self._onClosed.value?()
-                }
+                self._onClosed.value?()
             case .closed:
                 // should be filtered by the first if condition
                 ()
             default:
                 print("will close the connection")
                 self.state.withLockedValue { $0 = .closing }
-                self._onClosing._eventLoop.execute {
-                    self._onClosing.value?()
-                }
+                self._onClosing.value?()
                 self.send(frame.data, opcode: .connectionClose, promise: nil)
 //                self.channel.close(mode: .all, promise: nil)
                 self.state.withLockedValue { $0 = .closed }
                 print("connection closed")
-                self._onClosed._eventLoop.execute {
-                    self._onClosed.value?()
-                }
+                self._onClosed.value?()
             }
         case .continuation:
             preconditionFailure("continuation frame is filtered by swiftnio")
         case .ping:
             if frame.fin {
                 let unmaskedData = frame.unmaskedData
-                self.pong(data: unmaskedData)
                 self._onPing.value?(self, unmaskedData)
+                self.pong(data: unmaskedData)
             } else {
                 // error: control frame should not be fragmented
-                onError(error: LCLWebSocketError.controlFrameShouldNotBeFragmented)
+                self.onError(error: LCLWebSocketError.controlFrameShouldNotBeFragmented)
                 self.close(
                     code: .protocolError,
                     reason: LCLWebSocketError.controlFrameShouldNotBeFragmented.description,
@@ -355,7 +331,7 @@ public final class WebSocket: Sendable {
                     }
                 }
             } else {
-                onError(error: LCLWebSocketError.controlFrameShouldNotBeFragmented)
+                self.onError(error: LCLWebSocketError.controlFrameShouldNotBeFragmented)
                 self.close(
                     code: .protocolError,
                     reason: LCLWebSocketError.controlFrameShouldNotBeFragmented.description,
@@ -363,7 +339,8 @@ public final class WebSocket: Sendable {
                 )
             }
         default:
-            ()
+            self._onError.value?(LCLWebSocketError.unknownOpCode(frame.opcode))
+            self.close(code: .protocolError, promise: nil)
         }
     }
 
@@ -469,11 +446,36 @@ extension WebSocket {
     public struct ConnectionInfo: Sendable {
         let url: URLComponents
         let `protocol`: String?
+//        private let _extensions: [WebSocketExtension]
         // TODO: extension
 
         init(url: URLComponents, protocol: String? = nil) {
             self.url = url
             self.protocol = `protocol`
+//            for `extension` in extensions.split(separator: ";") {
+//                let parts = `extension`.split(separator: "=")
+//                
+//            }
         }
     }
+    
+//    private struct WebSocketExtension: Sendable {
+//        let name: String
+//        let value: String?
+//    }
+    
+//    enum WebSocketExtensionName: String {
+//        case perMessageDeflate = "permessage-deflate"
+//        var reservedBit: WebSocketExtensionReservedBit {
+//            switch self {
+//            case .perMessageDeflate: return .rsv1
+//            }
+//        }
+//    }
+//    
+//    enum WebSocketExtensionReservedBit {
+//        case rsv1
+//        case rsv2
+//        case rsv3
+//    }
 }
