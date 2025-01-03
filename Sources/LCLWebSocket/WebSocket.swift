@@ -259,6 +259,13 @@ public final class WebSocket: Sendable {
         }
 
         print("frame received: \(frame)")
+        // TODO: the following applies to websocket without extension negotiated.
+        // Note: Extension support will come later
+        if frame.rsv1 || frame.rsv2 || frame.rsv3 {
+            self.close(code: .protocolError, promise: nil)
+            return
+        }
+        
         switch frame.opcode {
         case .binary:
             var data = frame.data
@@ -269,8 +276,7 @@ public final class WebSocket: Sendable {
             self._onBinary.value?(self, data)
         case .text:
             var data = frame.data
-            
-            // TODO: maybe the following code could be removed as unmasking is done in the aggregator
+
             if let maskKey = frame.maskKey {
                 data.webSocketUnmask(maskKey)
             }
@@ -281,6 +287,8 @@ public final class WebSocket: Sendable {
                     return
                 }
                 self._onText.value?(self, text)
+            } else {
+                self._onText.value?(self, "")
             }
         case .connectionClose:
             // if a previous close frame is received
@@ -490,18 +498,46 @@ extension WebSocket {
     public struct ConnectionInfo: Sendable {
         let url: URLComponents
         let `protocol`: String?
-//        private let _extensions: [WebSocketExtension]
-        // TODO: extension
+//        let extensions: [WebSocketExtension]
+//         TODO: extension
 
         init(url: URLComponents, protocol: String? = nil) {
             self.url = url
             self.protocol = `protocol`
+//            self.extensions = []
 //            for `extension` in extensions.split(separator: ";") {
 //                let parts = `extension`.split(separator: "=")
 //                
 //            }
         }
     }
+    
+//    public struct WebSocketExtension: Sendable {
+//        let name: String
+//        let parameters: [WebSocketExtensionParameter]
+//        let reservedBits: [WebSocketExtensionReservedBit]
+//        let reservedBitsValue: UInt8
+//        
+//        init(name: String, parameters: [WebSocketExtensionParameter], reservedBits: [WebSocketExtensionReservedBit]) {
+//            self.name = name
+//            self.parameters = parameters
+//            self.reservedBits = reservedBits
+//            if self.reservedBits.isEmpty {
+//                self.reservedBitsValue = 0
+//            } else {
+//                var value: UInt8 = 0
+//                for reservedBit in reservedBits {
+//                    value |= 1 << reservedBit.bitShift
+//                }
+//                self.reservedBitsValue = value
+//            }
+//        }
+//    }
+    
+//    public struct WebSocketExtensionParameter: Sendable {
+//        let name: String
+//        let value: String?
+//    }
     
 //    private struct WebSocketExtension: Sendable {
 //        let name: String
@@ -517,9 +553,17 @@ extension WebSocket {
 //        }
 //    }
 //    
-//    enum WebSocketExtensionReservedBit {
+//    public enum WebSocketExtensionReservedBit: Sendable {
 //        case rsv1
 //        case rsv2
 //        case rsv3
+//        
+//        var bitShift: Int {
+//            switch self {
+//            case .rsv1: return 2
+//            case .rsv2: return 1
+//            case .rsv3: return 0
+//            }
+//        }
 //    }
 }
