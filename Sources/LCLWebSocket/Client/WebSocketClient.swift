@@ -39,6 +39,7 @@ public struct WebSocketClient: Sendable, LCLWebSocketListenable {
     private var _onPong: (@Sendable (WebSocket, ByteBuffer) -> Void)?
     private var _onText: (@Sendable (WebSocket, String) -> Void)?
     private var _onBinary: (@Sendable (WebSocket, ByteBuffer) -> Void)?
+    private var _onClosing: (@Sendable (WebSocketErrorCode?, String?) -> Void)?
     private var _onError: (@Sendable (Error) -> Void)?
 
     public init(on eventloopGroup: any EventLoopGroup) {
@@ -63,6 +64,10 @@ public struct WebSocketClient: Sendable, LCLWebSocketListenable {
 
     public mutating func onBinary(_ callback: (@Sendable (WebSocket, ByteBuffer) -> Void)?) {
         self._onBinary = callback
+    }
+    
+    public mutating func onClosing(_ callback: (@Sendable (WebSocketErrorCode?, String?) -> Void)?) {
+        self._onClosing = callback
     }
 
     public mutating func onError(_ onError: (@Sendable (any Error) -> Void)?) {
@@ -182,6 +187,7 @@ public struct WebSocketClient: Sendable, LCLWebSocketListenable {
             if self.eventloopGroup is MultiThreadedEventLoopGroup {
                 return ClientBootstrap(group: self.eventloopGroup)
                     .channelOption(.socketOption(.tcp_nodelay), value: 1)
+                    .channelOption(.socketOption(.so_reuseaddr), value: 1)
                     .connectTimeout(configuration.connectionTimeout)
                     .channelInitializer(makeChannelInitializer(_:))
                     .connect(to: resolvedAddress)
@@ -266,6 +272,7 @@ public struct WebSocketClient: Sendable, LCLWebSocketListenable {
                 websocket.onText(self._onText)
                 websocket.onBinary(self._onBinary)
                 websocket.onError(self._onError)
+                websocket.onClosing(self._onClosing)
 
                 do {
                     try channel.syncOptions?.setOption(

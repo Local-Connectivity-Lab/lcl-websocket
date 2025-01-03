@@ -36,7 +36,7 @@ public final class WebSocket: Sendable {
     private let _onBinary: NIOLoopBoundBox<(@Sendable (WebSocket, ByteBuffer) -> Void)?>
 
     // TODO: change: Invoked when both peers have indicated that no more messages will be transmitted and the connection has been successfully released. No further calls to this listener will be made.
-    private let _onClosing: NIOLoopBoundBox<(@Sendable () -> Void)?>
+    private let _onClosing: NIOLoopBoundBox<(@Sendable (WebSocketErrorCode?, String?) -> Void)?>
 
     // TODO: change: Invoked when the remote peer has indicated that no more incoming messages will be transmitted.
     private let _onClosed: NIOLoopBoundBox<(@Sendable () -> Void)?>
@@ -97,7 +97,7 @@ public final class WebSocket: Sendable {
         self._onBinary.value = callback
     }
 
-    func onClosing(_ callback: (@Sendable () -> Void)?) {
+    func onClosing(_ callback: (@Sendable (WebSocketErrorCode?, String?) -> Void)?) {
         self._onClosing.value = callback
     }
 
@@ -269,10 +269,19 @@ public final class WebSocket: Sendable {
             self._onBinary.value?(self, data)
         case .text:
             var data = frame.data
+            
+            // TODO: maybe the following code could be removed as unmasking is done in the aggregator
             if let maskKey = frame.maskKey {
                 data.webSocketUnmask(maskKey)
             }
-            self._onText.value?(self, data.readString(length: data.readableBytes) ?? "")
+            
+            if data.readableBytes > 0 {
+                guard let text = data.readString(length: data.readableBytes, encoding: .utf8) else {
+                    self.close(code: .dataInconsistentWithMessage, promise: nil)
+                    return
+                }
+                self._onText.value?(self, text)
+            }
         case .connectionClose:
             // if a previous close frame is received
             // if we have sent a close frame
@@ -291,8 +300,43 @@ public final class WebSocket: Sendable {
                 ()
             default:
                 print("will close the connection")
+                var data = frame.data
+                
+                switch data.readableBytes {
+                case 0:
+                    self._onClosing.value?(nil, nil)
+                case 2...125:
+                    guard let closeCode = data.readWebSocketErrorCode() else {
+                        self.close(code: .protocolError, promise: nil)
+                        return
+                    }
+                    switch closeCode {
+                    case .unknown(let code):
+                        switch code {
+                        case 3000..<5000:
+                            break
+                        default:
+                            self.close(code: .protocolError, promise: nil)
+                            return
+                        }
+                    default:
+                        break
+                    }
+                    
+                    let bytesLeftForReason = data.readableBytes
+                    let reason = data.readString(length: data.readableBytes, encoding: .utf8)
+                    
+                    if bytesLeftForReason > 0 && reason == nil {
+                        self.close(code: .dataInconsistentWithMessage, promise: nil)
+                        return
+                    }
+                    self._onClosing.value?(closeCode, reason)
+                default:
+                    self.close(code: .protocolError, promise: nil)
+                    return
+                }
+                
                 self.state.withLockedValue { $0 = .closing }
-                self._onClosing.value?()
                 self.send(frame.data, opcode: .connectionClose, promise: nil)
 //                self.channel.close(mode: .all, promise: nil)
                 self.state.withLockedValue { $0 = .closed }
