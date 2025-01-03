@@ -289,7 +289,8 @@ public struct WebSocketClient: Sendable, LCLWebSocketListenable {
                 } catch {
                     return channel.eventLoop.makeFailedFuture(error)
                 }
-                return channel.eventLoop.makeSucceededVoidFuture()
+                
+                return channel.closeFuture
             }
         }
     }
