@@ -188,14 +188,19 @@ public final class WebSocket: Sendable {
             buffer.writeInteger(codeToSend)
 
             if let reason = reason {
-                if reason.utf8.count > 123  {
+                if reason.utf8.count > 123 {
                     promise?.fail(LCLWebSocketError.closeReasonTooLong)
                 } else {
                     buffer.writeString(reason)
                 }
             }
 
-            let frame = WebSocketFrame(fin: true, opcode: .connectionClose, maskKey: self.makeMaskingKey(), data: buffer)
+            let frame = WebSocketFrame(
+                fin: true,
+                opcode: .connectionClose,
+                maskKey: self.makeMaskingKey(),
+                data: buffer
+            )
             print("will close connection with frame: \(frame)")
             self.channel.writeAndFlush(frame, promise: promise)
         default:
@@ -266,13 +271,13 @@ public final class WebSocket: Sendable {
             self.close(code: .protocolError, promise: nil)
             return
         }
-        
+
         var data = frame.data
         if let maskKey = frame.maskKey {
             data.webSocketUnmask(maskKey)
         }
         let originalDataReaderIdx = data.readerIndex
-        
+
         switch frame.opcode {
         case .binary:
             self._onBinary.value?(self, data)
@@ -305,7 +310,7 @@ public final class WebSocket: Sendable {
                 ()
             default:
                 print("will close the connection")
-                
+
                 switch data.readableBytes {
                 case 0:
                     self._onClosing.value?(nil, nil)
@@ -326,10 +331,10 @@ public final class WebSocket: Sendable {
                     default:
                         break
                     }
-                    
+
                     let bytesLeftForReason = data.readableBytes
                     let reason = data.readString(length: data.readableBytes, encoding: .utf8)
-                    
+
                     if bytesLeftForReason > 0 && reason == nil {
                         self.close(code: .dataInconsistentWithMessage, promise: nil)
                         return
@@ -339,7 +344,7 @@ public final class WebSocket: Sendable {
                     self.close(code: .protocolError, promise: nil)
                     return
                 }
-                
+
                 self.state.withLockedValue { $0 = .closing }
                 data.moveReaderIndex(to: originalDataReaderIdx)
                 self.send(data, opcode: .connectionClose, promise: nil)
@@ -366,7 +371,7 @@ public final class WebSocket: Sendable {
         case .pong:
             if frame.fin {
                 // if there is no previous ping, unsolicited, a reponse is not expected
-//                var unmaskedData = frame.unmaskedData
+                //                var unmaskedData = frame.unmaskedData
                 self._onPong.value?(self, data)
                 if frame.length == WebSocket.pingIDLength {
                     print("readable pong bytes: \(data.readableBytes)")
@@ -494,72 +499,72 @@ extension WebSocket {
     public struct ConnectionInfo: Sendable {
         let url: URLComponents
         let `protocol`: String?
-//        let extensions: [WebSocketExtension]
-//         TODO: extension
+        //        let extensions: [WebSocketExtension]
+        //         TODO: extension
 
         init(url: URLComponents, protocol: String? = nil) {
             self.url = url
             self.protocol = `protocol`
-//            self.extensions = []
-//            for `extension` in extensions.split(separator: ";") {
-//                let parts = `extension`.split(separator: "=")
-//                
-//            }
+            //            self.extensions = []
+            //            for `extension` in extensions.split(separator: ";") {
+            //                let parts = `extension`.split(separator: "=")
+            //
+            //            }
         }
     }
-    
-//    public struct WebSocketExtension: Sendable {
-//        let name: String
-//        let parameters: [WebSocketExtensionParameter]
-//        let reservedBits: [WebSocketExtensionReservedBit]
-//        let reservedBitsValue: UInt8
-//        
-//        init(name: String, parameters: [WebSocketExtensionParameter], reservedBits: [WebSocketExtensionReservedBit]) {
-//            self.name = name
-//            self.parameters = parameters
-//            self.reservedBits = reservedBits
-//            if self.reservedBits.isEmpty {
-//                self.reservedBitsValue = 0
-//            } else {
-//                var value: UInt8 = 0
-//                for reservedBit in reservedBits {
-//                    value |= 1 << reservedBit.bitShift
-//                }
-//                self.reservedBitsValue = value
-//            }
-//        }
-//    }
-    
-//    public struct WebSocketExtensionParameter: Sendable {
-//        let name: String
-//        let value: String?
-//    }
-    
-//    private struct WebSocketExtension: Sendable {
-//        let name: String
-//        let value: String?
-//    }
-    
-//    enum WebSocketExtensionName: String {
-//        case perMessageDeflate = "permessage-deflate"
-//        var reservedBit: WebSocketExtensionReservedBit {
-//            switch self {
-//            case .perMessageDeflate: return .rsv1
-//            }
-//        }
-//    }
-//    
-//    public enum WebSocketExtensionReservedBit: Sendable {
-//        case rsv1
-//        case rsv2
-//        case rsv3
-//        
-//        var bitShift: Int {
-//            switch self {
-//            case .rsv1: return 2
-//            case .rsv2: return 1
-//            case .rsv3: return 0
-//            }
-//        }
-//    }
+
+    //    public struct WebSocketExtension: Sendable {
+    //        let name: String
+    //        let parameters: [WebSocketExtensionParameter]
+    //        let reservedBits: [WebSocketExtensionReservedBit]
+    //        let reservedBitsValue: UInt8
+    //
+    //        init(name: String, parameters: [WebSocketExtensionParameter], reservedBits: [WebSocketExtensionReservedBit]) {
+    //            self.name = name
+    //            self.parameters = parameters
+    //            self.reservedBits = reservedBits
+    //            if self.reservedBits.isEmpty {
+    //                self.reservedBitsValue = 0
+    //            } else {
+    //                var value: UInt8 = 0
+    //                for reservedBit in reservedBits {
+    //                    value |= 1 << reservedBit.bitShift
+    //                }
+    //                self.reservedBitsValue = value
+    //            }
+    //        }
+    //    }
+
+    //    public struct WebSocketExtensionParameter: Sendable {
+    //        let name: String
+    //        let value: String?
+    //    }
+
+    //    private struct WebSocketExtension: Sendable {
+    //        let name: String
+    //        let value: String?
+    //    }
+
+    //    enum WebSocketExtensionName: String {
+    //        case perMessageDeflate = "permessage-deflate"
+    //        var reservedBit: WebSocketExtensionReservedBit {
+    //            switch self {
+    //            case .perMessageDeflate: return .rsv1
+    //            }
+    //        }
+    //    }
+    //
+    //    public enum WebSocketExtensionReservedBit: Sendable {
+    //        case rsv1
+    //        case rsv2
+    //        case rsv3
+    //
+    //        var bitShift: Int {
+    //            switch self {
+    //            case .rsv1: return 2
+    //            case .rsv2: return 1
+    //            case .rsv3: return 0
+    //            }
+    //        }
+    //    }
 }

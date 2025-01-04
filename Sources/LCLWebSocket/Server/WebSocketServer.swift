@@ -24,7 +24,7 @@ import NIOTransportServices
 #endif
 
 public struct WebSocketServer: Sendable {
-    
+
     enum UpgradeResult {
         case notUpgraded(Error?)
         case websocket
@@ -48,7 +48,7 @@ public struct WebSocketServer: Sendable {
     public mutating func onOpen(_ callback: (@Sendable (WebSocket) -> Void)?) {
         self._onOpen = callback
     }
-    
+
     public mutating func onPing(_ onPing: @escaping @Sendable (WebSocket, ByteBuffer) -> Void) {
         self._onPing = onPing
     }
@@ -64,33 +64,34 @@ public struct WebSocketServer: Sendable {
     public mutating func onBinary(_ onBinary: @escaping @Sendable (WebSocket, ByteBuffer) -> Void) {
         self._onBinary = onBinary
     }
-    
+
     public mutating func onClosing(_ callback: (@Sendable (WebSocketErrorCode?, String?) -> Void)?) {
         self._onClosing = callback
     }
-    
+
     public mutating func onClosed(_ callback: (@Sendable () -> Void)?) {
         self._onClosed = callback
     }
 
     #if !canImport(Darwin) || swift(>=5.10)
-//    @available(macOS 13, iOS 16, watchOS 9, tvOS 16, visionOS 1.0, *)
-//    public func listen(
-//        to host: String,
-//        port: Int,
-//        configuration: LCLWebSocket.Configuration
-//    ) throws -> EventLoopFuture<Void> {
-//        let addr = try SocketAddress(ipAddress: host, port: port)
-//        return self.listen(to: addr, configuration: configuration)
-//    }
-    
+    //    @available(macOS 13, iOS 16, watchOS 9, tvOS 16, visionOS 1.0, *)
+    //    public func listen(
+    //        to host: String,
+    //        port: Int,
+    //        configuration: LCLWebSocket.Configuration
+    //    ) throws -> EventLoopFuture<Void> {
+    //        let addr = try SocketAddress(ipAddress: host, port: port)
+    //        return self.listen(to: addr, configuration: configuration)
+    //    }
+
     public func listen(to address: SocketAddress, configuration: LCLWebSocket.Configuration) -> EventLoopFuture<Void> {
         ServerBootstrap(group: self.eventloopGroup)
             .serverChannelOption(.socketOption(.so_reuseaddr), value: 1)
             .serverChannelInitializer { channel in
                 print("parent channel: \(channel)")
                 if let socketSendBufferSize = configuration.socketSendBufferSize,
-                    let syncOptions = channel.syncOptions {
+                    let syncOptions = channel.syncOptions
+                {
                     do {
                         try syncOptions.setOption(.socketOption(.so_sndbuf), value: socketSendBufferSize)
                     } catch {
@@ -99,7 +100,8 @@ public struct WebSocketServer: Sendable {
                 }
 
                 if let socketReceiveBuffer = configuration.socketReceiveBufferSize,
-                    let syncOptions = channel.syncOptions {
+                    let syncOptions = channel.syncOptions
+                {
                     do {
                         try syncOptions.setOption(.socketOption(.so_rcvbuf), value: socketReceiveBuffer)
                     } catch {
@@ -109,7 +111,8 @@ public struct WebSocketServer: Sendable {
 
                 // bind to selected device, if any
                 if let deviceName = configuration.deviceName,
-                    let device = findDevice(with: deviceName, protocol: address.protocol) {
+                    let device = findDevice(with: deviceName, protocol: address.protocol)
+                {
                     do {
                         try bindTo(device: device, on: channel)
                     } catch {
@@ -134,23 +137,24 @@ public struct WebSocketServer: Sendable {
                         return channel.eventLoop.makeFailedFuture(error)
                     }
                 }
-                
+
                 return self.configureWebSocketServerUpgrade(on: channel, configuration: configuration)
             }
             .bind(to: address)
             .flatMap { channel in
-                return channel.closeFuture
+                channel.closeFuture
             }
     }
 
     @available(macOS 13, iOS 16, watchOS 9, tvOS 16, visionOS 1.0, *)
     public func listen1(to address: SocketAddress, configuration: LCLWebSocket.Configuration) -> EventLoopFuture<Void> {
-        return ServerBootstrap(group: self.eventloopGroup)
+        ServerBootstrap(group: self.eventloopGroup)
             .serverChannelOption(.socketOption(.so_reuseaddr), value: 1)
             .serverChannelInitializer { channel in
                 print("parent channel: \(channel)")
                 if let socketSendBufferSize = configuration.socketSendBufferSize,
-                    let syncOptions = channel.syncOptions {
+                    let syncOptions = channel.syncOptions
+                {
                     do {
                         try syncOptions.setOption(.socketOption(.so_sndbuf), value: socketSendBufferSize)
                     } catch {
@@ -159,7 +163,8 @@ public struct WebSocketServer: Sendable {
                 }
 
                 if let socketReceiveBuffer = configuration.socketReceiveBufferSize,
-                    let syncOptions = channel.syncOptions {
+                    let syncOptions = channel.syncOptions
+                {
                     do {
                         try syncOptions.setOption(.socketOption(.so_rcvbuf), value: socketReceiveBuffer)
                     } catch {
@@ -169,7 +174,8 @@ public struct WebSocketServer: Sendable {
 
                 // bind to selected device, if any
                 if let deviceName = configuration.deviceName,
-                    let device = findDevice(with: deviceName, protocol: address.protocol) {
+                    let device = findDevice(with: deviceName, protocol: address.protocol)
+                {
                     do {
                         try bindTo(device: device, on: channel)
                     } catch {
@@ -198,13 +204,20 @@ public struct WebSocketServer: Sendable {
 
                 return self.configureTypedWebSocketServerUpgrade(on: channel, configuration: configuration)
             }
-           .bind(to: address)
-           .flatMap { channel in
-               channel.closeFuture
-           }
+            .bind(to: address)
+            .flatMap { channel in
+                channel.closeFuture
+            }
     }
-    private func configureWebSocketServerUpgrade(on channel: Channel, configuration: LCLWebSocket.Configuration) -> EventLoopFuture<Void> {
-        let upgrader = NIOWebSocketServerUpgrader(maxFrameSize: configuration.maxFrameSize, automaticErrorHandling: false, shouldUpgrade: self.serverConfiguration.shouldUpgrade) { channel, httpRequestHead in
+    private func configureWebSocketServerUpgrade(
+        on channel: Channel,
+        configuration: LCLWebSocket.Configuration
+    ) -> EventLoopFuture<Void> {
+        let upgrader = NIOWebSocketServerUpgrader(
+            maxFrameSize: configuration.maxFrameSize,
+            automaticErrorHandling: false,
+            shouldUpgrade: self.serverConfiguration.shouldUpgrade
+        ) { channel, httpRequestHead in
             let websocket = WebSocket(
                 channel: channel,
                 type: .server,
@@ -216,18 +229,23 @@ public struct WebSocketServer: Sendable {
             websocket.onText(self._onText)
             websocket.onBinary(self._onBinary)
             websocket.onClosing(self._onClosing)
-            
+
             do {
-                
-                let methodValidationHandlerCtx = try channel.pipeline.syncOperations.context(handlerType: HTTPRequestMethodValidationHandler.self)
-                let requestErrorHandlerCtx = try channel.pipeline.syncOperations.context(handlerType: HTTPServerRequestErrorHandler.self)
-                let upgradeHandlerCtx = try channel.pipeline.syncOperations.context(handlerType: HTTPServerUpgradeHandler.self)
-                
+
+                let methodValidationHandlerCtx = try channel.pipeline.syncOperations.context(
+                    handlerType: HTTPRequestMethodValidationHandler.self
+                )
+                let requestErrorHandlerCtx = try channel.pipeline.syncOperations.context(
+                    handlerType: HTTPServerRequestErrorHandler.self
+                )
+                let upgradeHandlerCtx = try channel.pipeline.syncOperations.context(
+                    handlerType: HTTPServerUpgradeHandler.self
+                )
+
                 _ = channel.pipeline.syncOperations.removeHandler(context: methodValidationHandlerCtx)
                 _ = channel.pipeline.syncOperations.removeHandler(context: requestErrorHandlerCtx)
                 _ = channel.pipeline.syncOperations.removeHandler(context: upgradeHandlerCtx)
-                
-                
+
                 try channel.syncOptions?.setOption(
                     .writeBufferWaterMark,
                     value: .init(
@@ -250,22 +268,36 @@ public struct WebSocketServer: Sendable {
                 return channel.eventLoop.makeFailedFuture(error)
             }
         }
-        
-        let serverUpgradeConfig = NIOHTTPServerUpgradeConfiguration(upgraders: [upgrader], completionHandler: { channel in })
+
+        let serverUpgradeConfig = NIOHTTPServerUpgradeConfiguration(
+            upgraders: [upgrader],
+            completionHandler: { channel in }
+        )
         do {
             try channel.pipeline.syncOperations.configureHTTPServerPipeline(withServerUpgrade: serverUpgradeConfig)
-            let protocolErrorHandler = try channel.pipeline.syncOperations.handler(type: HTTPServerProtocolErrorHandler.self)
-            try channel.pipeline.syncOperations.addHandler(HTTPRequestMethodValidationHandler(allowedMethods: [.GET]), position: .after(protocolErrorHandler))
+            let protocolErrorHandler = try channel.pipeline.syncOperations.handler(
+                type: HTTPServerProtocolErrorHandler.self
+            )
+            try channel.pipeline.syncOperations.addHandler(
+                HTTPRequestMethodValidationHandler(allowedMethods: [.GET]),
+                position: .after(protocolErrorHandler)
+            )
             try channel.pipeline.syncOperations.addHandler(HTTPServerRequestErrorHandler(), position: .last)
             return channel.eventLoop.makeSucceededVoidFuture()
         } catch {
             return channel.eventLoop.makeFailedFuture(error)
         }
     }
-    
+
     @available(macOS 13, iOS 16, watchOS 9, tvOS 16, visionOS 1.0, *)
-    private func configureTypedWebSocketServerUpgrade(on channel: Channel, configuration: LCLWebSocket.Configuration) -> EventLoopFuture<Void> {
-        let upgrader = NIOTypedWebSocketServerUpgrader(maxFrameSize: configuration.maxFrameSize, shouldUpgrade: self.serverConfiguration.shouldUpgrade) { channel, httpRequestHead in
+    private func configureTypedWebSocketServerUpgrade(
+        on channel: Channel,
+        configuration: LCLWebSocket.Configuration
+    ) -> EventLoopFuture<Void> {
+        let upgrader = NIOTypedWebSocketServerUpgrader(
+            maxFrameSize: configuration.maxFrameSize,
+            shouldUpgrade: self.serverConfiguration.shouldUpgrade
+        ) { channel, httpRequestHead in
             let websocket = WebSocket(
                 channel: channel,
                 type: .server,
@@ -306,7 +338,9 @@ public struct WebSocketServer: Sendable {
 
         print("serverUpgradeConfig: \(serverUpgradeConfig)")
         do {
-            let upgradeResult = try channel.pipeline.syncOperations.configureUpgradableHTTPServerPipeline(configuration: .init(upgradeConfiguration: serverUpgradeConfig))
+            let upgradeResult = try channel.pipeline.syncOperations.configureUpgradableHTTPServerPipeline(
+                configuration: .init(upgradeConfiguration: serverUpgradeConfig)
+            )
             return upgradeResult.flatMap { result in
                 print("upgrade result: \(result)")
                 switch result {
@@ -326,58 +360,63 @@ public struct WebSocketServer: Sendable {
 }
 
 extension WebSocketServer {
-    
+
     // respond with status code and the body string back to the client
     // Connection: close and Content-Length: 0 will be included automatically
-    private static func makeResponse(with status: HTTPResponseStatus, additionalHeaders: [String: String]? = nil) -> HTTPResponseHead {
+    private static func makeResponse(
+        with status: HTTPResponseStatus,
+        additionalHeaders: [String: String]? = nil
+    ) -> HTTPResponseHead {
         var headers = HTTPHeaders()
         headers.add(name: "Connection", value: "close")
         headers.add(name: "Content-Length", value: "0")
-        
+
         if additionalHeaders != nil {
             for (key, val) in additionalHeaders! {
                 headers.add(name: key, value: val)
             }
         }
-        
+
         return HTTPResponseHead(version: .http1_1, status: status, headers: headers)
     }
-    
+
     private final class HTTPRequestMethodValidationHandler: ChannelInboundHandler, RemovableChannelHandler {
         typealias InboundIn = HTTPServerRequestPart
         typealias InboundOut = HTTPServerRequestPart
         typealias OutboundOut = HTTPServerResponsePart
-        
+
         private enum HTTPRequestMethodValidationStateMachine {
             case ok
             case invalidMethod
         }
-        
+
         private let allowedMethods: [HTTPMethod]
         private var state: HTTPRequestMethodValidationStateMachine
-        
+
         init(allowedMethods: [HTTPMethod]) {
             self.allowedMethods = allowedMethods
             self.state = .ok
         }
-        
+
         func handlerAdded(context: ChannelHandlerContext) {
             print("HTTPRequestMethodValidationHandler added")
         }
-        
+
         func handlerRemoved(context: ChannelHandlerContext) {
             print("HTTPRequestMethodValidationHandler removed")
         }
-        
+
         func channelActive(context: ChannelHandlerContext) {
             print("HTTPRequestMethodValidationHandler active")
         }
-        
+
         func channelRead(context: ChannelHandlerContext, data: NIOAny) {
             let requestPart = self.unwrapInboundIn(data)
             switch (requestPart, self.state) {
             case (.head, .invalidMethod):
-                preconditionFailure("HTTPRequestMethodValidationHandler is not in a valid state while receiving http request head. \(self.state)")
+                preconditionFailure(
+                    "HTTPRequestMethodValidationHandler is not in a valid state while receiving http request head. \(self.state)"
+                )
             case (.head(let head), .ok):
                 if !allowedMethods.contains(head.method) {
                     self.state = .invalidMethod
@@ -398,35 +437,34 @@ extension WebSocketServer {
                 context.close(mode: .all, promise: nil)
             }
         }
-        
+
     }
-    
-    
+
     private final class HTTPServerRequestErrorHandler: ChannelInboundHandler, RemovableChannelHandler {
         typealias InboundIn = HTTPServerRequestPart
         typealias InboundOut = HTTPServerRequestPart
         typealias OutboundOut = HTTPServerResponsePart
-        
+
         private enum HTTPServerRequestErrorHandlerStateMachine {
             case ok
             case error(Error)
             case done
         }
-        
+
         private var state: HTTPServerRequestErrorHandlerStateMachine = .ok
-        
+
         func handlerAdded(context: ChannelHandlerContext) {
             print("error recorder added")
         }
-        
+
         func handlerRemoved(context: ChannelHandlerContext) {
             print("error recorder removed")
         }
-        
+
         func channelActive(context: ChannelHandlerContext) {
             print("error recorder active")
         }
-        
+
         func channelRead(context: ChannelHandlerContext, data: NIOAny) {
             let request = self.unwrapInboundIn(data)
             switch (request, self.state) {
@@ -437,7 +475,7 @@ extension WebSocketServer {
                 context.fireChannelRead(data)
             }
         }
-        
+
         func errorCaught(context: ChannelHandlerContext, error: Error) {
             switch self.state {
             case .ok:
@@ -450,7 +488,7 @@ extension WebSocketServer {
                 preconditionFailure("Channel should already be closed. But it is still receiving error: \(error)")
             }
         }
-        
+
         private func closeChannel(for error: Error, with context: ChannelHandlerContext) {
             let responseHead: HTTPResponseHead
             if (error as? NIOWebSocketUpgradeError) == .unsupportedWebSocketTarget {

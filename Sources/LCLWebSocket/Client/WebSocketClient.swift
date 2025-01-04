@@ -17,7 +17,6 @@ import NIOHTTP1
 import NIOPosix
 import NIOSSL
 import NIOWebSocket
-import NIOHTTP1
 
 #if canImport(Network)
 import NIOTransportServices
@@ -66,11 +65,11 @@ public struct WebSocketClient: Sendable, LCLWebSocketListenable {
     public mutating func onBinary(_ callback: (@Sendable (WebSocket, ByteBuffer) -> Void)?) {
         self._onBinary = callback
     }
-    
+
     public mutating func onClosing(_ callback: (@Sendable (WebSocketErrorCode?, String?) -> Void)?) {
         self._onClosing = callback
     }
-    
+
     public mutating func onClosed(_ callback: (@Sendable () -> Void)?) {
         self._onClosed = callback
     }
@@ -123,7 +122,7 @@ public struct WebSocketClient: Sendable, LCLWebSocketListenable {
         let path = endpoint.path.isEmpty ? "/" : endpoint.path
         let query = endpoint.query ?? ""
         let uri = path + (query.isEmpty ? "" : "?" + query)
-        
+
         logger.debug("host: \(host) port: \(port) uri: \(uri)")
 
         let resolvedAddress: SocketAddress
@@ -132,11 +131,12 @@ public struct WebSocketClient: Sendable, LCLWebSocketListenable {
         } catch {
             return self.eventloopGroup.any().makeFailedFuture(LCLWebSocketError.invalidURL)
         }
-        
+
         @Sendable
         func makeChannelInitializer(_ channel: Channel) -> EventLoopFuture<Void> {
             if let socketSendBufferSize = configuration.socketSendBufferSize,
-                let syncOptions = channel.syncOptions {
+                let syncOptions = channel.syncOptions
+            {
                 do {
                     try syncOptions.setOption(.socketOption(.so_sndbuf), value: socketSendBufferSize)
                 } catch {
@@ -145,7 +145,8 @@ public struct WebSocketClient: Sendable, LCLWebSocketListenable {
             }
 
             if let socketReceiveBuffer = configuration.socketReceiveBufferSize,
-                let syncOptions = channel.syncOptions {
+                let syncOptions = channel.syncOptions
+            {
                 do {
                     try syncOptions.setOption(.socketOption(.so_rcvbuf), value: socketReceiveBuffer)
                 } catch {
@@ -155,7 +156,8 @@ public struct WebSocketClient: Sendable, LCLWebSocketListenable {
 
             // bind to selected device, if any
             if let deviceName = configuration.deviceName,
-                let device = findDevice(with: deviceName, protocol: resolvedAddress.protocol) {
+                let device = findDevice(with: deviceName, protocol: resolvedAddress.protocol)
+            {
                 do {
                     try bindTo(device: device, on: channel)
                 } catch {
@@ -187,7 +189,7 @@ public struct WebSocketClient: Sendable, LCLWebSocketListenable {
 
             return channel.eventLoop.makeSucceededVoidFuture()
         }
-        
+
         func makeBootstrapAndConnect() -> EventLoopFuture<Channel> {
             if self.eventloopGroup is MultiThreadedEventLoopGroup {
                 return ClientBootstrap(group: self.eventloopGroup)
@@ -200,7 +202,7 @@ public struct WebSocketClient: Sendable, LCLWebSocketListenable {
                 let tcpOptions = NWProtocolTCP.Options()
                 tcpOptions.connectionTimeout = Int(configuration.connectionTimeout.seconds)
                 tcpOptions.noDelay = true
-                
+
                 return NIOTSConnectionBootstrap(group: self.eventloopGroup)
                     .tcpOptions(tcpOptions)
                     .channelInitializer(makeChannelInitializer(_:))
@@ -209,52 +211,54 @@ public struct WebSocketClient: Sendable, LCLWebSocketListenable {
         }
 
         let upgradeResult = makeBootstrapAndConnect().flatMap { channel in
-                // make upgrade request
-                let upgrader = NIOTypedWebSocketClientUpgrader<WebSocketUpgradeResult>(
-                    maxFrameSize: configuration.maxFrameSize,
-                    enableAutomaticErrorHandling: false
-                ) { channel, httpResponse in
-                    // TODO: probably need to decode the response from server to populate for more fields like extension
-                    print(httpResponse)
-                    return channel.eventLoop.makeCompletedFuture {
-                        WebSocketUpgradeResult.websocket(channel)
-                    }
-                }
-
-                var httpHeaders = HTTPHeaders()
-                httpHeaders.add(name: "Host", value: "\(host):\(port)")
-                for (key, val) in headers {
-                    httpHeaders.add(name: key, value: val)
-                }
-                // TODO: need to handle extension
-                // TODO: need to support connect over proxy
-
-                let httpRequestHead = HTTPRequestHead(
-                    version: .http1_1,
-                    method: .GET,
-                    uri: uri,
-                    headers: httpHeaders
-                )
-
-                let upgradeConfig = NIOTypedHTTPClientUpgradeConfiguration(
-                    upgradeRequestHead: httpRequestHead,
-                    upgraders: [upgrader]
-                ) { channel in
-                    print("not upgraded")
-                    return channel.eventLoop.makeCompletedFuture { .notUpgraded(nil) }
-                }
-
-                do {
-                    var httpClientPipelineConfiguration = NIOUpgradableHTTPClientPipelineConfiguration(upgradeConfiguration: upgradeConfig)
-                    httpClientPipelineConfiguration.leftOverBytesStrategy = configuration.leftoverBytesStrategy
-                    
-                    return try channel.pipeline.syncOperations.configureUpgradableHTTPClientPipeline(
-                        configuration: httpClientPipelineConfiguration
-                    )
-                } catch {
-                    return channel.eventLoop.makeCompletedFuture { .notUpgraded(error) }
+            // make upgrade request
+            let upgrader = NIOTypedWebSocketClientUpgrader<WebSocketUpgradeResult>(
+                maxFrameSize: configuration.maxFrameSize,
+                enableAutomaticErrorHandling: false
+            ) { channel, httpResponse in
+                // TODO: probably need to decode the response from server to populate for more fields like extension
+                print(httpResponse)
+                return channel.eventLoop.makeCompletedFuture {
+                    WebSocketUpgradeResult.websocket(channel)
                 }
             }
+
+            var httpHeaders = HTTPHeaders()
+            httpHeaders.add(name: "Host", value: "\(host):\(port)")
+            for (key, val) in headers {
+                httpHeaders.add(name: key, value: val)
+            }
+            // TODO: need to handle extension
+            // TODO: need to support connect over proxy
+
+            let httpRequestHead = HTTPRequestHead(
+                version: .http1_1,
+                method: .GET,
+                uri: uri,
+                headers: httpHeaders
+            )
+
+            let upgradeConfig = NIOTypedHTTPClientUpgradeConfiguration(
+                upgradeRequestHead: httpRequestHead,
+                upgraders: [upgrader]
+            ) { channel in
+                print("not upgraded")
+                return channel.eventLoop.makeCompletedFuture { .notUpgraded(nil) }
+            }
+
+            do {
+                var httpClientPipelineConfiguration = NIOUpgradableHTTPClientPipelineConfiguration(
+                    upgradeConfiguration: upgradeConfig
+                )
+                httpClientPipelineConfiguration.leftOverBytesStrategy = configuration.leftoverBytesStrategy
+
+                return try channel.pipeline.syncOperations.configureUpgradableHTTPClientPipeline(
+                    configuration: httpClientPipelineConfiguration
+                )
+            } catch {
+                return channel.eventLoop.makeCompletedFuture { .notUpgraded(error) }
+            }
+        }
 
         return upgradeResult.flatMap { upgradeResult in
             switch upgradeResult {
@@ -301,7 +305,7 @@ public struct WebSocketClient: Sendable, LCLWebSocketListenable {
                 } catch {
                     return channel.eventLoop.makeFailedFuture(error)
                 }
-                
+
                 return channel.closeFuture
             }
         }

@@ -30,9 +30,9 @@ extension WebSocketServerConfiguration {
     public static let defaultConfiguration: WebSocketServerConfiguration = Self(
         shouldUpgrade: { channel, requestHead in
             // by default, all websocket connection will be refused
-//            print("will reject the upgrade request. http header: \(requestHead)")
+            //            print("will reject the upgrade request. http header: \(requestHead)")
             let httpHeaders = HTTPHeaders([("User-Agent", "LCLWebSocketServer")])
-            
+
             return channel.eventLoop.makeSucceededFuture(httpHeaders)
         },
         onUpgradeComplete: { _ in
