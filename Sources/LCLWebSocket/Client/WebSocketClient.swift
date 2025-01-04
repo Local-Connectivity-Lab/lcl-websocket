@@ -40,6 +40,7 @@ public struct WebSocketClient: Sendable, LCLWebSocketListenable {
     private var _onText: (@Sendable (WebSocket, String) -> Void)?
     private var _onBinary: (@Sendable (WebSocket, ByteBuffer) -> Void)?
     private var _onClosing: (@Sendable (WebSocketErrorCode?, String?) -> Void)?
+    private var _onClosed: (@Sendable () -> Void)?
     private var _onError: (@Sendable (Error) -> Void)?
 
     public init(on eventloopGroup: any EventLoopGroup) {
@@ -68,6 +69,10 @@ public struct WebSocketClient: Sendable, LCLWebSocketListenable {
     
     public mutating func onClosing(_ callback: (@Sendable (WebSocketErrorCode?, String?) -> Void)?) {
         self._onClosing = callback
+    }
+    
+    public mutating func onClosed(_ callback: (@Sendable () -> Void)?) {
+        self._onClosed = callback
     }
 
     public mutating func onError(_ onError: (@Sendable (any Error) -> Void)?) {

@@ -196,6 +196,7 @@ public final class WebSocket: Sendable {
             }
 
             let frame = WebSocketFrame(fin: true, opcode: .connectionClose, maskKey: self.makeMaskingKey(), data: buffer)
+            print("will close connection with frame: \(frame)")
             self.channel.writeAndFlush(frame, promise: promise)
         default:
             promise?.fail(LCLWebSocketError.channelNotActive)
@@ -266,21 +267,16 @@ public final class WebSocket: Sendable {
             return
         }
         
+        var data = frame.data
+        if let maskKey = frame.maskKey {
+            data.webSocketUnmask(maskKey)
+        }
+        let originalDataReaderIdx = data.readerIndex
+        
         switch frame.opcode {
         case .binary:
-            var data = frame.data
-            if let maskKey = frame.maskKey {
-                data.webSocketUnmask(maskKey)
-            }
-
             self._onBinary.value?(self, data)
         case .text:
-            var data = frame.data
-
-            if let maskKey = frame.maskKey {
-                data.webSocketUnmask(maskKey)
-            }
-            
             if data.readableBytes > 0 {
                 guard let text = data.readString(length: data.readableBytes, encoding: .utf8) else {
                     self.close(code: .dataInconsistentWithMessage, promise: nil)
@@ -303,12 +299,12 @@ public final class WebSocket: Sendable {
             case .closing:
                 self.state.withLockedValue { $0 = .closed }
                 self._onClosed.value?()
+                self.channel.close(mode: .all, promise: nil)
             case .closed:
                 // should be filtered by the first if condition
                 ()
             default:
                 print("will close the connection")
-                var data = frame.data
                 
                 switch data.readableBytes {
                 case 0:
@@ -345,19 +341,19 @@ public final class WebSocket: Sendable {
                 }
                 
                 self.state.withLockedValue { $0 = .closing }
-                self.send(frame.data, opcode: .connectionClose, promise: nil)
-//                self.channel.close(mode: .all, promise: nil)
+                data.moveReaderIndex(to: originalDataReaderIdx)
+                self.send(data, opcode: .connectionClose, promise: nil)
                 self.state.withLockedValue { $0 = .closed }
                 print("connection closed")
                 self._onClosed.value?()
+                self.channel.close(mode: .all, promise: nil)
             }
         case .continuation:
             preconditionFailure("continuation frame is filtered by swiftnio")
         case .ping:
             if frame.fin {
-                let unmaskedData = frame.unmaskedData
-                self._onPing.value?(self, unmaskedData)
-                self.pong(data: unmaskedData)
+                self._onPing.value?(self, data)
+                self.pong(data: data)
             } else {
                 // error: control frame should not be fragmented
                 self.onError(error: LCLWebSocketError.controlFrameShouldNotBeFragmented)
@@ -370,11 +366,11 @@ public final class WebSocket: Sendable {
         case .pong:
             if frame.fin {
                 // if there is no previous ping, unsolicited, a reponse is not expected
-                var unmaskedData = frame.unmaskedData
-                self._onPong.value?(self, unmaskedData)
+//                var unmaskedData = frame.unmaskedData
+                self._onPong.value?(self, data)
                 if frame.length == WebSocket.pingIDLength {
-                    print("readable pong bytes: \(unmaskedData.readableBytes)")
-                    let id = unmaskedData.readString(length: unmaskedData.readableBytes)
+                    print("readable pong bytes: \(data.readableBytes)")
+                    let id = data.readString(length: data.readableBytes)
                     self.timerTracker.withLockedValue { tracker in
                         print("tracker: \(tracker)")
                         if let id = id, let callback = tracker.removeValue(forKey: id) {

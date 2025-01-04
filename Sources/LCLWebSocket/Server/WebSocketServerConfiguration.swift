@@ -29,10 +29,11 @@ public struct WebSocketServerConfiguration: Sendable {
 extension WebSocketServerConfiguration {
     public static let defaultConfiguration: WebSocketServerConfiguration = Self(
         shouldUpgrade: { channel, requestHead in
-            print(channel.pipeline.debugDescription)
             // by default, all websocket connection will be refused
-            print("will reject the upgrade request. http header: \(requestHead)")
-            return channel.eventLoop.makeSucceededFuture(nil)
+//            print("will reject the upgrade request. http header: \(requestHead)")
+            let httpHeaders = HTTPHeaders([("User-Agent", "LCLWebSocketServer")])
+            
+            return channel.eventLoop.makeSucceededFuture(httpHeaders)
         },
         onUpgradeComplete: { _ in
             print("server upgraded. onUpgradeComplete")
