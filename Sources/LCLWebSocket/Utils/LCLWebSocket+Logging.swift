@@ -15,14 +15,12 @@ import Logging
 
 let LOGGER_LABEL = "org.seattlecommunitynetwork.lclwebsocket"
 
-var logger: Logger {
-    get {
-        var logger = Logger(label: LOGGER_LABEL)
-        #if DEBUG
-        logger.logLevel = .debug
-        #else  // !LOG
-        logger.logLevel = .info
-        #endif
-        return logger
-    }
-}
+let logger: Logger = {
+    var logger = Logger(label: LOGGER_LABEL)
+    #if DEBUG
+    logger.logLevel = .debug
+    #else  // !LOG
+    logger.logLevel = .info
+    #endif
+    return logger
+}()

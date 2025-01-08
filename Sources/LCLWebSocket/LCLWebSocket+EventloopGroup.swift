@@ -24,6 +24,8 @@ import NIOTransportServices
 #endif
 
 extension LCLWebSocket {
+
+    /// The default `EventLoopGroup` for  the `LCLWebSocket`.
     public static var defaultEventloopGroup: EventLoopGroup {
         #if canImport(Network)
         if #available(macOS 10.14, iOS 12.0, tvOS 12.0, watchOS 6.0, visionOS 1.0, *) {
@@ -36,6 +38,10 @@ extension LCLWebSocket {
         #endif
     }
 
+    /// Create an `EventLoopGroup` with size `size` for  the `LCLWebSocket`.
+    ///
+    /// - Parameters:
+    ///     - size: the number of event loop in this `EventLoopGroup`
     public static func makeEventLoopGroup(size: Int) -> EventLoopGroup {
         #if canImport(Network)
         if #available(macOS 10.14, iOS 12.0, tvOS 12.0, watchOS 6.0, visionOS 1.0, *) {

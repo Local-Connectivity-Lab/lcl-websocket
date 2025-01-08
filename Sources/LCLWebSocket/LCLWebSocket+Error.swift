@@ -13,19 +13,41 @@
 import Foundation
 import NIOWebSocket
 
+/// The errors that `LCLWebSocket` might encounter while communicating with the remote peer.
 public enum LCLWebSocketError: Error {
+
+    /// The WebSocket connection upgrade failed
     case notUpgraded
+
+    /// The close reason in the close frame is too long. It should not be longer than 123 bytes.
     case closeReasonTooLong
+
+    /// The underlying connection for `LCLWebSocket` is closed.
     case websocketNotConnected
+
+    /// The underlying channel for `LCLWebSocket` is not active.
     case channelNotActive
+
+    /// Control frame should not be fragmented in WebSocket
     case controlFrameShouldNotBeFragmented
-    case websocketAlreadyClosed
+
+    /// The WebSocket connection times out
     case websocketTimeout
+
+    /// The WebSocket URL to connect to is invalid.
     case invalidURL
+
+    /// The device to which the connection will be bound to is invalid
     case invalidDevice
+
+    /// TLS initialization failed for `wss` endpoint
     case tlsInitializationFailed
-    case connectionClosedAlready
+
+    /// The OpCode received is not known
     case unknownOpCode(WebSocketOpcode)
+
+    /// HTTP method is not allowed during the upgrade request.
+    case methodNotAllowed
 }
 
 extension LCLWebSocketError: CustomStringConvertible {
@@ -41,8 +63,6 @@ extension LCLWebSocketError: CustomStringConvertible {
             return "Channel is not active"
         case .controlFrameShouldNotBeFragmented:
             return "Control frame should not be fragmented"
-        case .websocketAlreadyClosed:
-            return "WebSocket connection is already closed"
         case .websocketTimeout:
             return "WebSocket timeout"
         case .invalidURL:
@@ -51,10 +71,10 @@ extension LCLWebSocketError: CustomStringConvertible {
             return "Invalid Device"
         case .tlsInitializationFailed:
             return "TLS initialization failed"
-        case .connectionClosedAlready:
-            return "Connection closed already"
         case .unknownOpCode(let code):
             return "Unknown opcode \(code)"
+        case .methodNotAllowed:
+            return "HTTP Method not allowed"
         }
     }
 }

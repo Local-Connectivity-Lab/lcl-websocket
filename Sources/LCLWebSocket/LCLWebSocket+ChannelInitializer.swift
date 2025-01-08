@@ -13,6 +13,11 @@
 import Foundation
 import NIOCore
 
+/// Bind the connection to the given `device` using the given `Channel`.
+///
+/// - Parameters:
+///     - device: the device to bind to
+///     - on: the channel that will be bound to the device
 internal func bindTo(device: NIONetworkDevice, on channel: Channel) throws {
     #if canImport(Darwin)
     switch device.address {
@@ -28,6 +33,11 @@ internal func bindTo(device: NIONetworkDevice, on channel: Channel) throws {
     #endif
 }
 
+/// Find the device on the machine with the given deviceName and protocol
+///
+/// - Parameters:
+///     - with: the device name to find from the system
+///     - protocol: the protocol that the device supports
 internal func findDevice(with deviceName: String, protocol: NIOBSDSocket.ProtocolFamily) -> NIONetworkDevice? {
     do {
         for device in try System.enumerateDevices() {
@@ -41,7 +51,7 @@ internal func findDevice(with deviceName: String, protocol: NIOBSDSocket.Protoco
             }
         }
     } catch {
-        // TODO: log
+        logger.debug("Error occurred while finding device \(deviceName) and \(`protocol`): \(error)")
     }
     return nil
 }

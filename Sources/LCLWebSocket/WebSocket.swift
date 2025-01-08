@@ -34,11 +34,7 @@ public final class WebSocket: Sendable {
     private let _onPong: NIOLoopBoundBox<(@Sendable (WebSocket, ByteBuffer) -> Void)?>
     private let _onText: NIOLoopBoundBox<(@Sendable (WebSocket, String) -> Void)?>
     private let _onBinary: NIOLoopBoundBox<(@Sendable (WebSocket, ByteBuffer) -> Void)?>
-
-    // TODO: change: Invoked when both peers have indicated that no more messages will be transmitted and the connection has been successfully released. No further calls to this listener will be made.
     private let _onClosing: NIOLoopBoundBox<(@Sendable (WebSocketErrorCode?, String?) -> Void)?>
-
-    // TODO: change: Invoked when the remote peer has indicated that no more incoming messages will be transmitted.
     private let _onClosed: NIOLoopBoundBox<(@Sendable () -> Void)?>
     private let _onError: NIOLoopBoundBox<(@Sendable (Error) -> Void)?>
 
@@ -172,11 +168,11 @@ public final class WebSocket: Sendable {
 
         switch self.state.withLockedValue({ $0 }) {
         case .closed:
-            // TODO: probably close the channel?
             self.channel.close(mode: .all, promise: promise)
         case .closing:
             self.state.withLockedValue { $0 = .closed }
             promise?.succeed(())
+            self.channel.close(mode: .all, promise: promise)
         case .open:
             self.state.withLockedValue { $0 = .closing }
             var codeToSend = UInt16(webSocketErrorCode: code)
@@ -228,9 +224,6 @@ public final class WebSocket: Sendable {
         switch self.state.withLockedValue({ $0 }) {
         case .open:
             self.send(data, opcode: .ping, fin: true, promise: promise)
-        case .closing, .closed:
-            promise?.fail(LCLWebSocketError.websocketAlreadyClosed)
-            self.onError(error: LCLWebSocketError.websocketAlreadyClosed)
         default:
             promise?.fail(LCLWebSocketError.websocketNotConnected)
             self.onError(error: LCLWebSocketError.websocketNotConnected)
