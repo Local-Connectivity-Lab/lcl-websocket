@@ -10,6 +10,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+import Atomics
 import Foundation
 import Logging
 import NIOCore
@@ -17,7 +18,6 @@ import NIOHTTP1
 import NIOPosix
 import NIOSSL
 import NIOWebSocket
-import Atomics
 
 #if canImport(Network)
 import NIOTransportServices
@@ -43,9 +43,9 @@ public struct WebSocketClient: Sendable, LCLWebSocketListenable {
     private var _onClosing: (@Sendable (WebSocketErrorCode?, String?) -> Void)?
     private var _onClosed: (@Sendable () -> Void)?
     private var _onError: (@Sendable (Error) -> Void)?
-    
+
     private let isShutdown: ManagedAtomic<Bool>
-    
+
     private final class HTTPUpgradeHandler: ChannelInboundHandler, RemovableChannelHandler {
         typealias InboundIn = HTTPClientResponsePart
         typealias OutboundOut = HTTPClientRequestPart
@@ -143,7 +143,7 @@ public struct WebSocketClient: Sendable, LCLWebSocketListenable {
 
         return self.connect(to: urlComponents, headers: headers, configuration: configuration)
     }
-    
+
     /// Connect the WebSocket client to the given endpoint. The WebSocket client is configured using the provied configuration.
     /// While making the connection, the WebSocket client will be adding the addtional `headers`.
     ///
@@ -310,19 +310,27 @@ public struct WebSocketClient: Sendable, LCLWebSocketListenable {
         }
     }
 
-    
     /// Shutdown the WebSocket client.
     /// - Parameter callback: callback function that will be invoked when an error occurred during shutdown
     public func shutdown(_ callback: @escaping (Error?) -> Void) {
-        let (exchanged, original) = self.isShutdown.compareExchange(expected: false, desired: true, ordering: .acquiringAndReleasing)
+        let (exchanged, original) = self.isShutdown.compareExchange(
+            expected: false,
+            desired: true,
+            ordering: .acquiringAndReleasing
+        )
         if exchanged {
             self.eventloopGroup.shutdownGracefully(callback)
         } else {
             logger.info("WebSocket client already shutdown")
         }
     }
-    
-    private func makeHTTPRequestHeader(uri: String, host: String, port: Int, headers: [String: String]) -> HTTPRequestHead {
+
+    private func makeHTTPRequestHeader(
+        uri: String,
+        host: String,
+        port: Int,
+        headers: [String: String]
+    ) -> HTTPRequestHead {
         var httpHeaders = HTTPHeaders()
         httpHeaders.add(name: "Host", value: "\(host):\(port)")
         for (key, val) in headers {
@@ -368,7 +376,7 @@ extension WebSocketClient {
 
 #if !canImport(Darwin) || swift(>=5.10)
 extension WebSocketClient {
-    
+
     /// Connect the WebSocket client to the given endpoint. The WebSocket client is configured using the provied configuration.
     /// While making the connection, the WebSocket client will be adding the addtional `headers`.
     ///
@@ -392,7 +400,7 @@ extension WebSocketClient {
 
         return self.typedConnect(to: urlComponents, headers: headers, configuration: configuration)
     }
-    
+
     /// Connect the WebSocket client to the given endpoint. The WebSocket client is configured using the provied configuration.
     /// While making the connection, the WebSocket client will be adding the addtional `headers`.
     ///

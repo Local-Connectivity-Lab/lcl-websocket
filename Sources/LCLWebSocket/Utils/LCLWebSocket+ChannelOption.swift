@@ -14,7 +14,7 @@ import Foundation
 import NIOCore
 
 extension ChannelOption where Self == ChannelOptions.Types.SocketOption {
-    
+
     /// Set the IPv6 optioin for the `Channel`
     public static func ipv6Option(_ name: NIOBSDSocket.Option) -> Self {
         .init(level: .ipv6, name: name)

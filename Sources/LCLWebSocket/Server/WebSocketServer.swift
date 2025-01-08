@@ -10,6 +10,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+import Atomics
 import Foundation
 import NIOConcurrencyHelpers
 import NIOCore
@@ -17,7 +18,6 @@ import NIOHTTP1
 import NIOPosix
 import NIOSSL
 import NIOWebSocket
-import Atomics
 
 #if canImport(Network)
 import Network
@@ -45,7 +45,7 @@ public struct WebSocketServer: Sendable, LCLWebSocketListenable {
     private var _onClosing: (@Sendable (WebSocketErrorCode?, String?) -> Void)?
     private var _onClosed: (@Sendable () -> Void)?
     private var _onError: (@Sendable (Error) -> Void)?
-    
+
     private let isShutdown: ManagedAtomic<Bool>
 
     /// Initialize a `WebSocketServer` instance on the given `EventLoopGroup` using the provided `serverConfiguration`
@@ -94,7 +94,6 @@ public struct WebSocketServer: Sendable, LCLWebSocketListenable {
         self._onError = onError
     }
 
-    
     /// Let the WebSocket server bind and listen to the given address, using the provided configuration.
     ///
     /// - Parameters:
@@ -161,14 +160,17 @@ public struct WebSocketServer: Sendable, LCLWebSocketListenable {
                 channel.closeFuture
             }
     }
-    
-    
+
     /// Shutdown the WebSocket client.
     ///
     /// - Parameters:
     ///     - callback: callback function that will be invoked when an error occurred during shutdown
     public func shutdown(_ callback: @escaping ((Error?) -> Void)) {
-        let (exchanged, original) = self.isShutdown.compareExchange(expected: false, desired: true, ordering: .acquiringAndReleasing)
+        let (exchanged, original) = self.isShutdown.compareExchange(
+            expected: false,
+            desired: true,
+            ordering: .acquiringAndReleasing
+        )
         if exchanged {
             self.eventloopGroup.shutdownGracefully(callback)
         } else {
@@ -279,7 +281,10 @@ extension WebSocketServer {
     /// - Note: this is functionally the same as `listen(to:configuration:)`. But this function relies on infrastructures that
     /// is available only on Swift >= 5.10
     @available(macOS 13, iOS 16, watchOS 9, tvOS 16, visionOS 1.0, *)
-    public func typedListen(to address: SocketAddress, configuration: LCLWebSocket.Configuration) -> EventLoopFuture<Void> {
+    public func typedListen(
+        to address: SocketAddress,
+        configuration: LCLWebSocket.Configuration
+    ) -> EventLoopFuture<Void> {
         ServerBootstrap(group: self.eventloopGroup)
             .serverChannelOption(.socketOption(.so_reuseaddr), value: 1)
             .serverChannelInitializer { channel in
