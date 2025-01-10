@@ -46,23 +46,6 @@ public struct WebSocketClient: Sendable, LCLWebSocketListenable {
 
     private let isShutdown: ManagedAtomic<Bool>
 
-    private final class HTTPUpgradeHandler: ChannelInboundHandler, RemovableChannelHandler {
-        typealias InboundIn = HTTPClientResponsePart
-        typealias OutboundOut = HTTPClientRequestPart
-
-        private let httpRequestHead: HTTPRequestHead
-
-        init(httpRequest: HTTPRequestHead) {
-            self.httpRequestHead = httpRequest
-        }
-
-        func channelActive(context: ChannelHandlerContext) {
-            logger.debug("sent HTTP upgrade request \(self.httpRequestHead)")
-            context.write(self.wrapOutboundOut(.head(self.httpRequestHead)), promise: nil)
-            context.writeAndFlush(self.wrapOutboundOut(.end(nil)), promise: nil)
-        }
-    }
-
     /// Initialize the `WebSocketClient` instance on the given `EventLoopGroup`
     ///
     /// - Parameters:
@@ -318,6 +301,7 @@ public struct WebSocketClient: Sendable, LCLWebSocketListenable {
             desired: true,
             ordering: .acquiringAndReleasing
         )
+
         if exchanged {
             self.eventloopGroup.shutdownGracefully(callback)
         } else {
@@ -614,3 +598,20 @@ extension WebSocketClient {
     }
 }
 #endif
+
+private final class HTTPUpgradeHandler: ChannelInboundHandler, RemovableChannelHandler {
+    typealias InboundIn = HTTPClientResponsePart
+    typealias OutboundOut = HTTPClientRequestPart
+
+    private let httpRequestHead: HTTPRequestHead
+
+    init(httpRequest: HTTPRequestHead) {
+        self.httpRequestHead = httpRequest
+    }
+
+    func channelActive(context: ChannelHandlerContext) {
+        logger.debug("sent HTTP upgrade request \(self.httpRequestHead)")
+        context.write(self.wrapOutboundOut(.head(self.httpRequestHead)), promise: nil)
+        context.writeAndFlush(self.wrapOutboundOut(.end(nil)), promise: nil)
+    }
+}
