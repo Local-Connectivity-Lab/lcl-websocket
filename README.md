@@ -25,7 +25,9 @@ LCL WebSocket is a cross-platform WebSocket [[RFC 6455]](https://datatracker.iet
 Add the following to your `Package.swift`:
 
 ```swift
-// TODO: 
+dependencies: [
+    .package(url: "https://github.com/Local-Connectivity-Lab/lcl-websocket.git", from: "1.0.0")
+]
 ```
 
 ### Basic Usage
