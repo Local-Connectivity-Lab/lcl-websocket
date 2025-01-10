@@ -10,6 +10,16 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+import Foundation
+import NIOCore
+
 public struct LCLWebSocket {
 
+    public static func client(on: any EventLoopGroup = LCLWebSocket.defaultEventloopGroup) -> WebSocketClient {
+        WebSocketClient(on: on)
+    }
+
+    public static func server(on: any EventLoopGroup = LCLWebSocket.defaultEventloopGroup, serverUpgradeConfiguration: WebSocketServerUpgradeConfiguration = .defaultConfiguration) -> WebSocketServer {
+        WebSocketServer(on: on, serverUpgradeConfiguration: serverUpgradeConfiguration)
+    }
 }

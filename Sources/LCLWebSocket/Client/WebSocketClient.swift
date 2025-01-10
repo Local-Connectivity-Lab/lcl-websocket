@@ -67,7 +67,7 @@ public struct WebSocketClient: Sendable, LCLWebSocketListenable {
     ///
     /// - Parameters:
     ///     - on: the `EventLoopGroup` that the WebSocket client will be run on.
-    public init(on eventloopGroup: any EventLoopGroup) {
+    init(on eventloopGroup: any EventLoopGroup) {
         self.eventloopGroup = eventloopGroup
         self.isShutdown = ManagedAtomic(false)
     }
@@ -313,7 +313,7 @@ public struct WebSocketClient: Sendable, LCLWebSocketListenable {
     /// Shutdown the WebSocket client.
     /// - Parameter callback: callback function that will be invoked when an error occurred during shutdown
     public func shutdown(_ callback: @escaping (Error?) -> Void) {
-        let (exchanged, original) = self.isShutdown.compareExchange(
+        let (exchanged, _) = self.isShutdown.compareExchange(
             expected: false,
             desired: true,
             ordering: .acquiringAndReleasing
