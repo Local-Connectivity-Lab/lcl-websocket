@@ -93,8 +93,7 @@ public struct WebSocketServer: Sendable, LCLWebSocketListenable {
     public mutating func onError(_ onError: (@Sendable (any Error) -> Void)?) {
         self._onError = onError
     }
-    
-    
+
     /// Let the WebSocket server bind and listen to the given address, using the provided configuration.
     /// - Parameters:
     ///   - host: the host IP address to listen to
@@ -269,7 +268,7 @@ extension WebSocketServer {
 
                     // bind to selected device, if any
                     if let deviceName = configuration.deviceName,
-                       let device = findDevice(with: deviceName, protocol: resolvedAddress.protocol)
+                        let device = findDevice(with: deviceName, protocol: resolvedAddress.protocol)
                     {
                         do {
                             try bindTo(device: device, on: channel)
@@ -310,7 +309,7 @@ extension WebSocketServer {
 
                     // bind to selected device, if any
                     if let deviceName = configuration.deviceName,
-                       let device = findDevice(with: deviceName, protocol: resolvedAddress.protocol)
+                        let device = findDevice(with: deviceName, protocol: resolvedAddress.protocol)
                     {
                         do {
                             try bindTo(device: device, on: channel)
@@ -354,26 +353,26 @@ extension WebSocketServer {
         to address: SocketAddress,
         configuration: LCLWebSocket.Configuration
     ) -> EventLoopFuture<Void> {
-        self.makeBootstrapAndBind(with: configuration, resolvedAddress: address) { (channel: Channel) -> EventLoopFuture<Void> in
-                // enable tls if configuration is provided
-                logger.debug("child channel: \(channel)")
-                if let tlsConfiguration = configuration.tlsConfiguration {
-                    guard let sslContext = try? NIOSSLContext(configuration: tlsConfiguration) else {
-                        return channel.eventLoop.makeFailedFuture(LCLWebSocketError.tlsInitializationFailed)
-                    }
-                    let sslServerHandler = NIOSSLServerHandler(context: sslContext)
-                    do {
-                        try channel.pipeline.syncOperations.addHandler(sslServerHandler)
-                    } catch {
-                        return channel.eventLoop.makeFailedFuture(error)
-                    }
+        self.makeBootstrapAndBind(with: configuration, resolvedAddress: address) { channel in
+            // enable tls if configuration is provided
+            logger.debug("child channel: \(channel)")
+            if let tlsConfiguration = configuration.tlsConfiguration {
+                guard let sslContext = try? NIOSSLContext(configuration: tlsConfiguration) else {
+                    return channel.eventLoop.makeFailedFuture(LCLWebSocketError.tlsInitializationFailed)
                 }
+                let sslServerHandler = NIOSSLServerHandler(context: sslContext)
+                do {
+                    try channel.pipeline.syncOperations.addHandler(sslServerHandler)
+                } catch {
+                    return channel.eventLoop.makeFailedFuture(error)
+                }
+            }
 
-                return self.configureTypedWebSocketServerUpgrade(on: channel, configuration: configuration)
-            }
-            .flatMap { channel in
-                channel.closeFuture
-            }
+            return self.configureTypedWebSocketServerUpgrade(on: channel, configuration: configuration)
+        }
+        .flatMap { channel in
+            channel.closeFuture
+        }
     }
 
     @available(macOS 13, iOS 16, watchOS 9, tvOS 16, visionOS 1.0, *)

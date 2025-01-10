@@ -19,7 +19,10 @@ public struct LCLWebSocket {
         WebSocketClient(on: on)
     }
 
-    public static func server(on: any EventLoopGroup = LCLWebSocket.defaultEventloopGroup, serverUpgradeConfiguration: WebSocketServerUpgradeConfiguration = .defaultConfiguration) -> WebSocketServer {
+    public static func server(
+        on: any EventLoopGroup = LCLWebSocket.defaultEventloopGroup,
+        serverUpgradeConfiguration: WebSocketServerUpgradeConfiguration = .defaultConfiguration
+    ) -> WebSocketServer {
         WebSocketServer(on: on, serverUpgradeConfiguration: serverUpgradeConfiguration)
     }
 }
