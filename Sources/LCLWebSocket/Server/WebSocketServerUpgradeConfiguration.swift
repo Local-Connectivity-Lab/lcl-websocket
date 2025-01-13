@@ -50,7 +50,7 @@ extension WebSocketServerUpgradeConfiguration {
             return channel.eventLoop.makeSucceededFuture(httpHeaders)
         },
         onUpgradeComplete: { _ in
-            print("server upgraded. onUpgradeComplete")
+            logger.info("server upgraded. onUpgradeComplete")
         }
     )
 }

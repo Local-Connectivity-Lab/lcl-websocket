@@ -63,7 +63,7 @@ public final class WebSocket: Sendable {
     }
 
     deinit {
-        print("websocket deinit. going away ...")
+        logger.debug("websocket deinit. going away ...")
     }
 
     public var url: String? {
@@ -119,7 +119,7 @@ public final class WebSocket: Sendable {
     ) {
         // TODO: if the channel is not active, abort the operation
         if !self.channel.isActive {
-            print("channel is not active anymore")
+            logger.debug("channel is not active anymore")
             promise?.fail(LCLWebSocketError.channelNotActive)
             return
         }
@@ -132,12 +132,12 @@ public final class WebSocket: Sendable {
                 maskKey: self.makeMaskingKey(),
                 data: buffer
             )
-            print("sent: \(frame)")
+            logger.debug("sent: \(frame)")
             self.channel.writeAndFlush(frame, promise: promise)
         case (.closed, _), (.closing, _):
-            print("Connection is already closed. Should not send any more frames")
+            logger.warning("Connection is already closed. Should not send any more frames")
         default:
-            print("websocket is not in connected state")
+            logger.error("websocket is not in connected state")
             promise?.fail(LCLWebSocketError.websocketNotConnected)
             self.onError(error: LCLWebSocketError.websocketNotConnected)
         }
@@ -162,7 +162,7 @@ public final class WebSocket: Sendable {
         if !self.channel.isActive {
             promise?.fail(LCLWebSocketError.channelNotActive)
             self.onError(error: LCLWebSocketError.channelNotActive)
-            print("channel is not active3213123")
+            logger.error("channel is not active!")
             return
         }
 
@@ -197,7 +197,7 @@ public final class WebSocket: Sendable {
                 maskKey: self.makeMaskingKey(),
                 data: buffer
             )
-            print("will close connection with frame: \(frame)")
+            logger.debug("will close connection with frame: \(frame)")
             self.channel.writeAndFlush(frame, promise: promise)
         default:
             promise?.fail(LCLWebSocketError.channelNotActive)
@@ -253,11 +253,11 @@ public final class WebSocket: Sendable {
     public func handleFrame(_ frame: WebSocketFrame) {
 
         if !self.channel.isActive || self.state.withLockedValue({ $0 }) == .closed {
-            print("channel is not active or is already closed.")
+            logger.debug("channel is not active or is already closed.")
             return
         }
 
-        print("frame received: \(frame)")
+        logger.debug("frame received: \(frame)")
         // TODO: the following applies to websocket without extension negotiated.
         // Note: Extension support will come later
         if frame.rsv1 || frame.rsv2 || frame.rsv3 {
@@ -302,7 +302,7 @@ public final class WebSocket: Sendable {
                 // should be filtered by the first if condition
                 ()
             default:
-                print("will close the connection")
+                logger.debug("will close the connection")
 
                 switch data.readableBytes {
                 case 0:
@@ -342,7 +342,7 @@ public final class WebSocket: Sendable {
                 data.moveReaderIndex(to: originalDataReaderIdx)
                 self.send(data, opcode: .connectionClose, promise: nil)
                 self.state.withLockedValue { $0 = .closed }
-                print("connection closed")
+                logger.debug("connection closed")
                 self._onClosed.value?()
                 self.channel.close(mode: .all, promise: nil)
             }
@@ -367,10 +367,8 @@ public final class WebSocket: Sendable {
                 //                var unmaskedData = frame.unmaskedData
                 self._onPong.value?(self, data)
                 if frame.length == WebSocket.pingIDLength {
-                    print("readable pong bytes: \(data.readableBytes)")
                     let id = data.readString(length: data.readableBytes)
                     self.timerTracker.withLockedValue { tracker in
-                        print("tracker: \(tracker)")
                         if let id = id, let callback = tracker.removeValue(forKey: id) {
                             callback.cancel()
                         }
@@ -399,11 +397,7 @@ public final class WebSocket: Sendable {
             // TODO: check if the previous ping has a response
             // TODO: check if timeout occurs
             if !self.channel.isActive {
-                print(
-                    "channel is not active 111",
-                    "parent is active \(String(describing: self.channel.parent?.isActive))",
-                    "self is active: \(self.channel)"
-                )
+                logger.debug("channel is not active")
                 repeatTask.cancel()
                 return
             }
@@ -415,7 +409,7 @@ public final class WebSocket: Sendable {
             case .open:
                 // TODO: schedule task to check if timeout occurs
                 let id = UUID().uuidString
-                print("id: \(id)")
+                logger.debug("id: \(id)")
                 let callback = try self.channel.eventLoop.scheduleCallback(
                     in: self.configuration.autoPingConfiguration.pingInterval,
                     handler: WebSocketKeepAliveCallbackHandler(
@@ -455,9 +449,9 @@ extension WebSocket {
 
         func handleScheduledCallback(eventLoop: some EventLoop) {
             if self.websocket.channel.isActive {
-                print("channel is still active. time out! \(self.id)")
+                logger.debug("channel is still active. time out! \(self.id)")
                 eventLoop.execute {
-                    print("timeout occured! \(self.id)")
+                    logger.debug("timeout occured! \(self.id)")
                     self.websocket.close(
                         code: .unknown(1006),
                         reason: LCLWebSocketError.websocketTimeout.description,
@@ -467,7 +461,7 @@ extension WebSocket {
             }
 
             _ = self.timerTracker.withLockedValue {
-                print("timer tracker size: \($0.count)")
+                logger.debug("timer tracker size: \($0.count)")
                 return $0.removeValue(forKey: self.id)
             }
         }
@@ -492,72 +486,11 @@ extension WebSocket {
     public struct ConnectionInfo: Sendable {
         let url: URLComponents
         let `protocol`: String?
-        //        let extensions: [WebSocketExtension]
-        //         TODO: extension
+        // TODO: extension
 
         init(url: URLComponents, protocol: String? = nil) {
             self.url = url
             self.protocol = `protocol`
-            //            self.extensions = []
-            //            for `extension` in extensions.split(separator: ";") {
-            //                let parts = `extension`.split(separator: "=")
-            //
-            //            }
         }
     }
-
-    //    public struct WebSocketExtension: Sendable {
-    //        let name: String
-    //        let parameters: [WebSocketExtensionParameter]
-    //        let reservedBits: [WebSocketExtensionReservedBit]
-    //        let reservedBitsValue: UInt8
-    //
-    //        init(name: String, parameters: [WebSocketExtensionParameter], reservedBits: [WebSocketExtensionReservedBit]) {
-    //            self.name = name
-    //            self.parameters = parameters
-    //            self.reservedBits = reservedBits
-    //            if self.reservedBits.isEmpty {
-    //                self.reservedBitsValue = 0
-    //            } else {
-    //                var value: UInt8 = 0
-    //                for reservedBit in reservedBits {
-    //                    value |= 1 << reservedBit.bitShift
-    //                }
-    //                self.reservedBitsValue = value
-    //            }
-    //        }
-    //    }
-
-    //    public struct WebSocketExtensionParameter: Sendable {
-    //        let name: String
-    //        let value: String?
-    //    }
-
-    //    private struct WebSocketExtension: Sendable {
-    //        let name: String
-    //        let value: String?
-    //    }
-
-    //    enum WebSocketExtensionName: String {
-    //        case perMessageDeflate = "permessage-deflate"
-    //        var reservedBit: WebSocketExtensionReservedBit {
-    //            switch self {
-    //            case .perMessageDeflate: return .rsv1
-    //            }
-    //        }
-    //    }
-    //
-    //    public enum WebSocketExtensionReservedBit: Sendable {
-    //        case rsv1
-    //        case rsv2
-    //        case rsv3
-    //
-    //        var bitShift: Int {
-    //            switch self {
-    //            case .rsv1: return 2
-    //            case .rsv2: return 1
-    //            case .rsv3: return 0
-    //            }
-    //        }
-    //    }
 }
