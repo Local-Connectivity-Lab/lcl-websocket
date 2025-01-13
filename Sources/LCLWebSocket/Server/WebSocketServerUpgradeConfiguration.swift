@@ -46,7 +46,7 @@ extension WebSocketServerUpgradeConfiguration {
     public static let defaultConfiguration: WebSocketServerUpgradeConfiguration = Self(
         shouldUpgrade: { channel, requestHead in
             let httpHeaders = HTTPHeaders([("User-Agent", "LCLWebSocketServer")])
-            print("received  request header: \(requestHead)")
+            logger.debug("received  request header: \(requestHead)")
             return channel.eventLoop.makeSucceededFuture(httpHeaders)
         },
         onUpgradeComplete: { _ in
