@@ -83,10 +83,10 @@ extension LCLWebSocket {
         var autoPingConfiguration: AutoPingConfiguration
 
         /// Socket send buffer size in bytes.
-        var socketSendBufferSize: Int32?
+        var socketSendBufferSize: Int?
 
         /// Socket receive buffer size in bytes.
-        var socketReceiveBufferSize: Int32?
+        var socketReceiveBufferSize: Int?
 
         /// Strategy for handling leftover bytes after upgrade.
         ///
@@ -109,8 +109,8 @@ extension LCLWebSocket {
             ),
             leftoverBytesStrategy: RemoveAfterUpgradeStrategy = .dropBytes,
             deviceName: String? = nil,
-            socketSendBufferSize: Int32? = nil,
-            socketReceiveBufferSize: Int32? = nil
+            socketSendBufferSize: Int? = nil,
+            socketReceiveBufferSize: Int? = nil
         ) {
             self.tlsConfiguration = tlsConfiguration
             self.maxFrameSize = maxFrameSize

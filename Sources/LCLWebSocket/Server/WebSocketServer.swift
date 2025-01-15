@@ -241,7 +241,8 @@ extension WebSocketServer {
         resolvedAddress: SocketAddress,
         childChannelInitializer: @escaping (Channel) -> EventLoopFuture<Void>
     ) -> EventLoopFuture<Channel> {
-        if self.eventloopGroup is MultiThreadedEventLoopGroup {
+
+        func makeServerBootstrap() -> EventLoopFuture<Channel> {
             return ServerBootstrap(group: self.eventloopGroup)
                 .serverChannelOption(.socketOption(.so_reuseaddr), value: 1)
                 .serverChannelInitializer { channel in
@@ -282,7 +283,10 @@ extension WebSocketServer {
                 .childChannelOption(.socketOption(.so_reuseaddr), value: 1)
                 .childChannelInitializer(childChannelInitializer)
                 .bind(to: resolvedAddress)
-        } else {
+        }
+
+        #if canImport(Network)
+        func makeNIOTSListenerBootstrap() -> EventLoopFuture<Channel> {
             return NIOTSListenerBootstrap(group: self.eventloopGroup)
                 .serverChannelOption(.socketOption(.so_reuseaddr), value: 1)
                 .serverChannelInitializer { channel in
@@ -324,20 +328,23 @@ extension WebSocketServer {
                 .childChannelInitializer(childChannelInitializer)
                 .bind(to: resolvedAddress)
         }
+        #endif
+
+        #if canImport(Network)
+        if self.eventloopGroup is MultiThreadedEventLoopGroup {
+            return makeServerBootstrap()
+        } else {
+            return makeNIOTSListenerBootstrap()
+        }
+        #else
+        return makeServerBootstrap()
+        #endif
+
     }
 }
 
 #if !canImport(Darwin) || swift(>=5.10)
 extension WebSocketServer {
-    //    @available(macOS 13, iOS 16, watchOS 9, tvOS 16, visionOS 1.0, *)
-    //    public func listen(
-    //        to host: String,
-    //        port: Int,
-    //        configuration: LCLWebSocket.Configuration
-    //    ) throws -> EventLoopFuture<Void> {
-    //        let addr = try SocketAddress(ipAddress: host, port: port)
-    //        return self.listen(to: addr, configuration: configuration)
-    //    }
 
     /// Let the WebSocket server bind and listen to the given address, using the provided configuration.
     ///
@@ -348,7 +355,7 @@ extension WebSocketServer {
     ///
     /// - Note: this is functionally the same as `listen(to:configuration:)`. But this function relies on infrastructures that
     /// is available only on Swift >= 5.10
-    @available(macOS 13, iOS 16, watchOS 9, tvOS 16, visionOS 1.0, *)
+    @available(macOS 13, iOS 16, watchOS 9, tvOS 16, *)
     public func typedListen(
         to address: SocketAddress,
         configuration: LCLWebSocket.Configuration
@@ -375,7 +382,7 @@ extension WebSocketServer {
         }
     }
 
-    @available(macOS 13, iOS 16, watchOS 9, tvOS 16, visionOS 1.0, *)
+    @available(macOS 13, iOS 16, watchOS 9, tvOS 16, *)
     private func configureTypedWebSocketServerUpgrade(
         on channel: Channel,
         configuration: LCLWebSocket.Configuration
@@ -520,9 +527,9 @@ extension WebSocketServer {
             case (.end, .ok):
                 context.fireChannelRead(data)
             case (.end, .invalidMethod):
-                let resposneHead = makeResponse(with: .methodNotAllowed)
-                context.channel.write(self.wrapOutboundOut(.head(resposneHead)), promise: nil)
-                context.channel.writeAndFlush(self.wrapOutboundOut(.end(nil)), promise: nil)
+                let responseHead = makeResponse(with: .methodNotAllowed)
+                context.channel.write(HTTPServerResponsePart.head(responseHead), promise: nil)
+                context.channel.writeAndFlush(HTTPServerResponsePart.end(nil), promise: nil)
                 context.fireErrorCaught(LCLWebSocketError.methodNotAllowed)
                 context.close(mode: .all, promise: nil)
             }
@@ -576,8 +583,8 @@ extension WebSocketServer {
                 responseHead = makeResponse(with: .internalServerError)
             }
             logger.debug("closing channel due to error \(error). response head \(responseHead)")
-            context.channel.write(self.wrapOutboundOut(.head(responseHead)), promise: nil)
-            context.channel.writeAndFlush(self.wrapOutboundOut(.end(nil)), promise: nil)
+            context.channel.write(HTTPServerResponsePart.head(responseHead), promise: nil)
+            context.channel.writeAndFlush(HTTPServerResponsePart.end(nil), promise: nil)
             context.close(mode: .all, promise: nil)
         }
     }

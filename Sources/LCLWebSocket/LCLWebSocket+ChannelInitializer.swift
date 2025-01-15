@@ -29,7 +29,7 @@ internal func bindTo(device: NIONetworkDevice, on channel: Channel) throws {
         throw LCLWebSocketError.invalidDevice
     }
     #elseif canImport(Glibc) || canImport(Musl)
-    return (channel as! SocketOptionProvider).setBindToDevice(device.name)
+    try (channel as! SocketOptionProvider).setBindToDevice(device.name).wait()
     #endif
 }
 

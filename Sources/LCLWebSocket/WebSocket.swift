@@ -276,7 +276,7 @@ public final class WebSocket: Sendable {
             self._onBinary.value?(self, data)
         case .text:
             if data.readableBytes > 0 {
-                guard let text = data.readString(length: data.readableBytes, encoding: .utf8) else {
+                guard let text = data.readString(length: data.readableBytes) else {
                     self.close(code: .dataInconsistentWithMessage, promise: nil)
                     return
                 }
@@ -326,7 +326,7 @@ public final class WebSocket: Sendable {
                     }
 
                     let bytesLeftForReason = data.readableBytes
-                    let reason = data.readString(length: data.readableBytes, encoding: .utf8)
+                    let reason = data.readString(length: data.readableBytes)
 
                     if bytesLeftForReason > 0 && reason == nil {
                         self.close(code: .dataInconsistentWithMessage, promise: nil)

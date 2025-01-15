@@ -338,14 +338,18 @@ extension WebSocketClient {
         resolvedAddress: SocketAddress,
         channelInitializer: @escaping (Channel) -> EventLoopFuture<Void>
     ) -> EventLoopFuture<Channel> {
-        if self.eventloopGroup is MultiThreadedEventLoopGroup {
+
+        func makeClientBootstrap() -> EventLoopFuture<Channel> {
             return ClientBootstrap(group: self.eventloopGroup)
                 .channelOption(.socketOption(.tcp_nodelay), value: 1)
                 .channelOption(.socketOption(.so_reuseaddr), value: 1)
                 .connectTimeout(configuration.connectionTimeout)
                 .channelInitializer(channelInitializer)
                 .connect(to: resolvedAddress)
-        } else {
+        }
+
+        #if canImport(Network)
+        func makeNIOTSConnectionBootstrap() -> EventLoopFuture<Channel> {
             let tcpOptions = NWProtocolTCP.Options()
             tcpOptions.connectionTimeout = Int(configuration.connectionTimeout.seconds)
             tcpOptions.noDelay = true
@@ -355,6 +359,17 @@ extension WebSocketClient {
                 .channelInitializer(channelInitializer)
                 .connect(to: resolvedAddress)
         }
+        #endif
+
+        #if canImport(Network)
+        if self.eventloopGroup is MultiThreadedEventLoopGroup {
+            return makeClientBootstrap()
+        } else {
+            return makeNIOTSConnectionBootstrap()
+        }
+        #else
+        return makeClientBootstrap()
+        #endif
     }
 }
 
@@ -372,7 +387,7 @@ extension WebSocketClient {
     ///
     /// - Note: this method is functionally the same as `connect(to:headers:configuration:)`. But this method relies on
     /// infrastructures that are available on Swift >= 5.10.
-    @available(macOS 13, iOS 16, watchOS 9, tvOS 16, visionOS 1.0, *)
+    @available(macOS 13, iOS 16, watchOS 9, tvOS 16, *)
     public func typedConnect(
         to endpoint: String,
         headers: [String: String] = [:],
@@ -396,7 +411,7 @@ extension WebSocketClient {
     ///
     /// - Note: this method is functionally the same as `connect(to:headers:configuration:)`. But this method relies on
     /// infrastructures that are available on Swift >= 5.10.
-    @available(macOS 13, iOS 16, watchOS 9, tvOS 16, visionOS 1.0, *)
+    @available(macOS 13, iOS 16, watchOS 9, tvOS 16, *)
     public func typedConnect(
         to url: URL,
         headers: [String: String] = [:],
@@ -420,7 +435,7 @@ extension WebSocketClient {
     ///
     /// - Note: this method is functionally the same as `connect(to:headers:configuration:)`. But this method relies on
     /// infrastructures that are available on Swift >= 5.10.
-    @available(macOS 13, iOS 16, watchOS 9, tvOS 16, visionOS 1.0, *)
+    @available(macOS 13, iOS 16, watchOS 9, tvOS 16, *)
     public func typedConnect(
         to endpoint: URLComponents,
         headers: [String: String],
