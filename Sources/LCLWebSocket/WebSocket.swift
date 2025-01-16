@@ -16,6 +16,7 @@ import NIOCore
 import NIOHTTP1
 import NIOPosix
 import NIOWebSocket
+import NIOFoundationCompat
 
 public final class WebSocket: Sendable {
 
@@ -23,7 +24,7 @@ public final class WebSocket: Sendable {
     private static let pingIDLength = 36
 
     public let channel: Channel
-    private let type: WebSocketType
+    let type: WebSocketType
     private let configuration: LCLWebSocket.Configuration
     private let state: NIOLockedValueBox<WebSocketState>
     private let timerTracker: NIOLockedValueBox<TimerTracker>
@@ -156,6 +157,7 @@ public final class WebSocket: Sendable {
     public func close(
         code: WebSocketErrorCode = .normalClosure,
         reason: String? = nil,
+        shouldForceCloseConnection: Bool = false,
         promise: EventLoopPromise<Void>? = nil
     ) {
         // TODO: skip if already closed or closing
@@ -199,6 +201,10 @@ public final class WebSocket: Sendable {
             )
             logger.debug("will close connection with frame: \(frame)")
             self.channel.writeAndFlush(frame, promise: promise)
+            if shouldForceCloseConnection {
+                logger.warning("close channel forcefully: \(self.channel)")
+                self.channel.close(mode: .all, promise: nil)
+            }
         default:
             promise?.fail(LCLWebSocketError.channelNotActive)
             self.onError(error: LCLWebSocketError.channelNotActive)
@@ -207,10 +213,11 @@ public final class WebSocket: Sendable {
 
     public func close(
         code: WebSocketErrorCode = .normalClosure,
-        reason: String? = nil
+        reason: String? = nil,
+        shouldForceCloseConnection: Bool = false
     ) -> EventLoopFuture<Void> {
         let promise = self.channel.eventLoop.makePromise(of: Void.self)
-        self.close(code: code, reason: reason, promise: promise)
+        self.close(code: code, reason: reason, shouldForceCloseConnection: shouldForceCloseConnection, promise: promise)
         return promise.futureResult
     }
 
@@ -276,7 +283,7 @@ public final class WebSocket: Sendable {
             self._onBinary.value?(self, data)
         case .text:
             if data.readableBytes > 0 {
-                guard let text = data.readString(length: data.readableBytes) else {
+                guard let text = data.readString(length: data.readableBytes, encoding: .utf8) else {
                     self.close(code: .dataInconsistentWithMessage, promise: nil)
                     return
                 }
@@ -297,7 +304,9 @@ public final class WebSocket: Sendable {
             case .closing:
                 self.state.withLockedValue { $0 = .closed }
                 self._onClosed.value?()
-                self.channel.close(mode: .all, promise: nil)
+                if self.type == .server {
+                    self.channel.close(mode: .all, promise: nil)
+                }
             case .closed:
                 // should be filtered by the first if condition
                 ()
@@ -309,7 +318,7 @@ public final class WebSocket: Sendable {
                     self._onClosing.value?(nil, nil)
                 case 2...125:
                     guard let closeCode = data.readWebSocketErrorCode() else {
-                        self.close(code: .protocolError, promise: nil)
+                        self.close(code: .protocolError, shouldForceCloseConnection: self.type == .server, promise: nil)
                         return
                     }
                     switch closeCode {
@@ -318,7 +327,7 @@ public final class WebSocket: Sendable {
                         case 3000..<5000:
                             break
                         default:
-                            self.close(code: .protocolError, promise: nil)
+                            self.close(code: .protocolError, shouldForceCloseConnection: self.type == .server, promise: nil)
                             return
                         }
                     default:
@@ -326,15 +335,15 @@ public final class WebSocket: Sendable {
                     }
 
                     let bytesLeftForReason = data.readableBytes
-                    let reason = data.readString(length: data.readableBytes)
+                    let reason = data.readString(length: data.readableBytes, encoding: .utf8)
 
                     if bytesLeftForReason > 0 && reason == nil {
-                        self.close(code: .dataInconsistentWithMessage, promise: nil)
+                        self.close(code: .dataInconsistentWithMessage, shouldForceCloseConnection: self.type == .server, promise: nil)
                         return
                     }
                     self._onClosing.value?(closeCode, reason)
                 default:
-                    self.close(code: .protocolError, promise: nil)
+                    self.close(code: .protocolError, shouldForceCloseConnection: self.type == .server, promise: nil)
                     return
                 }
 
@@ -344,7 +353,9 @@ public final class WebSocket: Sendable {
                 self.state.withLockedValue { $0 = .closed }
                 logger.debug("connection closed")
                 self._onClosed.value?()
-                self.channel.close(mode: .all, promise: nil)
+                if self.type == .server {
+                    self.channel.close(mode: .all, promise: nil)
+                }
             }
         case .continuation:
             preconditionFailure("continuation frame is filtered by swiftnio")
@@ -469,7 +480,7 @@ extension WebSocket {
 }
 
 extension WebSocket {
-    public enum WebSocketType: Sendable {
+    public enum WebSocketType: Sendable, Equatable {
         case client
         case server
     }

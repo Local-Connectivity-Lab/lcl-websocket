@@ -164,6 +164,27 @@ public struct WebSocketClient: Sendable, LCLWebSocketListenable {
 
         @Sendable
         func makeChannelInitializer(_ channel: Channel) -> EventLoopFuture<Void> {
+            if self.eventloopGroup is MultiThreadedEventLoopGroup {
+                if configuration.socketReuseAddress,
+                   let syncOptions = channel.syncOptions
+                {
+                    do {
+                        try syncOptions.setOption(.socketOption(.so_reuseaddr), value: 1)
+                    } catch {
+                        return channel.eventLoop.makeFailedFuture(error)
+                    }
+                }
+
+                if configuration.socketTcpNoDelay,
+                   let syncOptions = channel.syncOptions {
+                    do {
+                        try syncOptions.setOption(.socketOption(.tcp_nodelay), value: 1)
+                    } catch {
+                        return channel.eventLoop.makeFailedFuture(error)
+                    }
+                }
+            }
+
             if let socketSendBufferSize = configuration.socketSendBufferSize,
                 let syncOptions = channel.syncOptions
             {
@@ -341,8 +362,6 @@ extension WebSocketClient {
 
         func makeClientBootstrap() -> EventLoopFuture<Channel> {
             return ClientBootstrap(group: self.eventloopGroup)
-                .channelOption(.socketOption(.tcp_nodelay), value: 1)
-                .channelOption(.socketOption(.so_reuseaddr), value: 1)
                 .connectTimeout(configuration.connectionTimeout)
                 .channelInitializer(channelInitializer)
                 .connect(to: resolvedAddress)
@@ -352,7 +371,7 @@ extension WebSocketClient {
         func makeNIOTSConnectionBootstrap() -> EventLoopFuture<Channel> {
             let tcpOptions = NWProtocolTCP.Options()
             tcpOptions.connectionTimeout = Int(configuration.connectionTimeout.seconds)
-            tcpOptions.noDelay = true
+            tcpOptions.noDelay = configuration.socketTcpNoDelay
 
             return NIOTSConnectionBootstrap(group: self.eventloopGroup)
                 .tcpOptions(tcpOptions)
@@ -465,6 +484,27 @@ extension WebSocketClient {
 
         @Sendable
         func makeChannelInitializer(_ channel: Channel) -> EventLoopFuture<Void> {
+            if self.eventloopGroup is MultiThreadedEventLoopGroup {
+                if configuration.socketReuseAddress,
+                   let syncOptions = channel.syncOptions
+                {
+                    do {
+                        try syncOptions.setOption(.socketOption(.so_reuseaddr), value: 1)
+                    } catch {
+                        return channel.eventLoop.makeFailedFuture(error)
+                    }
+                }
+                
+                if configuration.socketTcpNoDelay,
+                   let syncOptions = channel.syncOptions {
+                    do {
+                        try syncOptions.setOption(.socketOption(.tcp_nodelay), value: 1)
+                    } catch {
+                        return channel.eventLoop.makeFailedFuture(error)
+                    }
+                }
+            }
+            
             if let socketSendBufferSize = configuration.socketSendBufferSize,
                 let syncOptions = channel.syncOptions
             {

@@ -15,6 +15,12 @@ import NIOCore
 import NIOHTTP1
 import NIOSSL
 
+#if (os(Linux) || os(Android)) && !canImport(Musl)
+public typealias SocketOptionValue = Int
+#else
+public typealias SocketOptionValue = CInt
+#endif
+
 extension LCLWebSocket {
     /// Collection of configuration options that allow users to configure the behavior of the WebSocket connection.
     ///
@@ -83,10 +89,22 @@ extension LCLWebSocket {
         var autoPingConfiguration: AutoPingConfiguration
 
         /// Socket send buffer size in bytes.
-        var socketSendBufferSize: Int?
+        var socketSendBufferSize: SocketOptionValue?
 
         /// Socket receive buffer size in bytes.
-        var socketReceiveBufferSize: Int?
+        var socketReceiveBufferSize: SocketOptionValue?
+        
+        /// Indicate that the underlying socket should reuse address or not.
+        ///
+        /// This option has no effect if `NIOTSEventLoopGroup` is used.
+        ///
+        /// - Note: see more in `man socket(7)`.
+        var socketReuseAddress: Bool
+        
+        /// Indicate that the socket should send the segments as soon as possible. If set, the Nagle algorithm is disabled.
+        ///
+        /// - Note: see more in `man socket(7)`
+        var socketTcpNoDelay: Bool
 
         /// Strategy for handling leftover bytes after upgrade.
         ///
@@ -109,8 +127,10 @@ extension LCLWebSocket {
             ),
             leftoverBytesStrategy: RemoveAfterUpgradeStrategy = .dropBytes,
             deviceName: String? = nil,
-            socketSendBufferSize: Int? = nil,
-            socketReceiveBufferSize: Int? = nil
+            socketSendBufferSize: SocketOptionValue? = nil,
+            socketReceiveBufferSize: SocketOptionValue? = nil,
+            socketReuseAddress: Bool = false,
+            socketTcpNoDelay: Bool = true
         ) {
             self.tlsConfiguration = tlsConfiguration
             self.maxFrameSize = maxFrameSize
@@ -125,6 +145,8 @@ extension LCLWebSocket {
             self.socketSendBufferSize = socketSendBufferSize
             self.socketReceiveBufferSize = socketReceiveBufferSize
             self.leftoverBytesStrategy = leftoverBytesStrategy
+            self.socketReuseAddress = socketReuseAddress
+            self.socketTcpNoDelay = socketTcpNoDelay
         }
     }
 }
