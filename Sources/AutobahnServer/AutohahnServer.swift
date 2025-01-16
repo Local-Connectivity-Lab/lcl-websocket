@@ -17,18 +17,18 @@ import NIOPosix
 
 @main
 struct AutohahnServer {
-    
+
     static let config = LCLWebSocket.Configuration(
         maxFrameSize: 1 << 16,
         autoPingConfiguration: .disabled,
         leftoverBytesStrategy: .forwardBytes
     )
-    
+
     static let serverAddress = "127.0.0.1"
     static let serverPort = 9000
-    
+
     static func main() throws {
-        
+
         let args = CommandLine.arguments
         var port: Int = Self.serverPort
         precondition(args.count == 1 || args.count == 3, "Usage: \(args[0]) [--port <port>]")
@@ -37,18 +37,17 @@ struct AutohahnServer {
             let portIndex = portCmdIndex + 1
             port = Int(args[portIndex]) ?? port
         }
-        
+
         var server = LCLWebSocket.server()
-        
+
         server.onBinary { ws, buffer in
             ws.send(buffer, opcode: .binary)
         }
-        
+
         server.onText { ws, text in
             ws.send(.init(string: text), opcode: .text)
         }
-        
+
         try server.listen(host: Self.serverAddress, port: port, configuration: Self.config).wait()
     }
 }
-

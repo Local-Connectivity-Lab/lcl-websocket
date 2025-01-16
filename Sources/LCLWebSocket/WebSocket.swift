@@ -13,10 +13,10 @@
 import Foundation
 import NIOConcurrencyHelpers
 import NIOCore
+import NIOFoundationCompat
 import NIOHTTP1
 import NIOPosix
 import NIOWebSocket
-import NIOFoundationCompat
 
 public final class WebSocket: Sendable {
 
@@ -327,7 +327,11 @@ public final class WebSocket: Sendable {
                         case 3000..<5000:
                             break
                         default:
-                            self.close(code: .protocolError, shouldForceCloseConnection: self.type == .server, promise: nil)
+                            self.close(
+                                code: .protocolError,
+                                shouldForceCloseConnection: self.type == .server,
+                                promise: nil
+                            )
                             return
                         }
                     default:
@@ -338,7 +342,11 @@ public final class WebSocket: Sendable {
                     let reason = data.readString(length: data.readableBytes, encoding: .utf8)
 
                     if bytesLeftForReason > 0 && reason == nil {
-                        self.close(code: .dataInconsistentWithMessage, shouldForceCloseConnection: self.type == .server, promise: nil)
+                        self.close(
+                            code: .dataInconsistentWithMessage,
+                            shouldForceCloseConnection: self.type == .server,
+                            promise: nil
+                        )
                         return
                     }
                     self._onClosing.value?(closeCode, reason)

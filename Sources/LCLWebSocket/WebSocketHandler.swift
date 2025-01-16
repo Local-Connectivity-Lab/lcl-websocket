@@ -29,7 +29,11 @@ final class WebSocketHandler: ChannelInboundHandler {
     func errorCaught(context: ChannelHandlerContext, error: any Error) {
         logger.debug("WebSocketHandler caught error: \(error)")
         if let err = error as? NIOWebSocketError {
-            self.websocket.close(code: WebSocketErrorCode(err), shouldForceCloseConnection: self.websocket.type == .server, promise: nil)
+            self.websocket.close(
+                code: WebSocketErrorCode(err),
+                shouldForceCloseConnection: self.websocket.type == .server,
+                promise: nil
+            )
         } else {
             self.websocket.close(code: .protocolError, shouldForceCloseConnection: true, promise: nil)
         }

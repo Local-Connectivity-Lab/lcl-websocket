@@ -243,12 +243,12 @@ extension WebSocketServer {
     ) -> EventLoopFuture<Channel> {
 
         func makeServerBootstrap() -> EventLoopFuture<Channel> {
-            return ServerBootstrap(group: self.eventloopGroup)
+            ServerBootstrap(group: self.eventloopGroup)
                 .serverChannelInitializer { channel in
                     logger.info("Server is listening on \(resolvedAddress)")
                     if self.eventloopGroup is MultiThreadedEventLoopGroup {
                         if configuration.socketReuseAddress,
-                           let syncOptions = channel.syncOptions
+                            let syncOptions = channel.syncOptions
                         {
                             do {
                                 try syncOptions.setOption(.socketOption(.so_reuseaddr), value: 1)
@@ -256,9 +256,10 @@ extension WebSocketServer {
                                 return channel.eventLoop.makeFailedFuture(error)
                             }
                         }
-                        
+
                         if configuration.socketTcpNoDelay,
-                           let syncOptions = channel.syncOptions {
+                            let syncOptions = channel.syncOptions
+                        {
                             do {
                                 try syncOptions.setOption(.socketOption(.tcp_nodelay), value: 1)
                             } catch {
@@ -266,7 +267,7 @@ extension WebSocketServer {
                             }
                         }
                     }
-                    
+
                     if let socketSendBufferSize = configuration.socketSendBufferSize,
                         let syncOptions = channel.syncOptions
                     {
@@ -306,10 +307,10 @@ extension WebSocketServer {
 
         #if canImport(Network)
         func makeNIOTSListenerBootstrap() -> EventLoopFuture<Channel> {
-            
+
             let tcpOptions = NWProtocolTCP.Options()
             tcpOptions.noDelay = configuration.socketTcpNoDelay
-            
+
             return NIOTSListenerBootstrap(group: self.eventloopGroup)
                 .tcpOptions(tcpOptions)
                 .serverChannelInitializer { channel in
@@ -385,10 +386,11 @@ extension WebSocketServer {
     ) -> EventLoopFuture<Void> {
         self.makeBootstrapAndBind(with: configuration, resolvedAddress: address) { channel in
             logger.debug("child channel: \(channel)")
-            
+
             if self.eventloopGroup is MultiThreadedEventLoopGroup {
                 if configuration.socketReuseAddress,
-                   let syncOptions = channel.syncOptions {
+                    let syncOptions = channel.syncOptions
+                {
                     do {
                         try syncOptions.setOption(.socketOption(.so_reuseaddr), value: 1)
                     } catch {
@@ -397,7 +399,8 @@ extension WebSocketServer {
                 }
 
                 if configuration.socketTcpNoDelay,
-                   let syncOptions = channel.syncOptions {
+                    let syncOptions = channel.syncOptions
+                {
                     do {
                         try syncOptions.setOption(.socketOption(.tcp_nodelay), value: 1)
                     } catch {
@@ -405,7 +408,7 @@ extension WebSocketServer {
                     }
                 }
             }
-            
+
             // enable tls if configuration is provided
             if let tlsConfiguration = configuration.tlsConfiguration {
                 guard let sslContext = try? NIOSSLContext(configuration: tlsConfiguration) else {

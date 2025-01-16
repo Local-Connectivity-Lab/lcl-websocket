@@ -166,7 +166,7 @@ public struct WebSocketClient: Sendable, LCLWebSocketListenable {
         func makeChannelInitializer(_ channel: Channel) -> EventLoopFuture<Void> {
             if self.eventloopGroup is MultiThreadedEventLoopGroup {
                 if configuration.socketReuseAddress,
-                   let syncOptions = channel.syncOptions
+                    let syncOptions = channel.syncOptions
                 {
                     do {
                         try syncOptions.setOption(.socketOption(.so_reuseaddr), value: 1)
@@ -176,7 +176,8 @@ public struct WebSocketClient: Sendable, LCLWebSocketListenable {
                 }
 
                 if configuration.socketTcpNoDelay,
-                   let syncOptions = channel.syncOptions {
+                    let syncOptions = channel.syncOptions
+                {
                     do {
                         try syncOptions.setOption(.socketOption(.tcp_nodelay), value: 1)
                     } catch {
@@ -361,7 +362,7 @@ extension WebSocketClient {
     ) -> EventLoopFuture<Channel> {
 
         func makeClientBootstrap() -> EventLoopFuture<Channel> {
-            return ClientBootstrap(group: self.eventloopGroup)
+            ClientBootstrap(group: self.eventloopGroup)
                 .connectTimeout(configuration.connectionTimeout)
                 .channelInitializer(channelInitializer)
                 .connect(to: resolvedAddress)
@@ -486,7 +487,7 @@ extension WebSocketClient {
         func makeChannelInitializer(_ channel: Channel) -> EventLoopFuture<Void> {
             if self.eventloopGroup is MultiThreadedEventLoopGroup {
                 if configuration.socketReuseAddress,
-                   let syncOptions = channel.syncOptions
+                    let syncOptions = channel.syncOptions
                 {
                     do {
                         try syncOptions.setOption(.socketOption(.so_reuseaddr), value: 1)
@@ -494,9 +495,10 @@ extension WebSocketClient {
                         return channel.eventLoop.makeFailedFuture(error)
                     }
                 }
-                
+
                 if configuration.socketTcpNoDelay,
-                   let syncOptions = channel.syncOptions {
+                    let syncOptions = channel.syncOptions
+                {
                     do {
                         try syncOptions.setOption(.socketOption(.tcp_nodelay), value: 1)
                     } catch {
@@ -504,7 +506,7 @@ extension WebSocketClient {
                     }
                 }
             }
-            
+
             if let socketSendBufferSize = configuration.socketSendBufferSize,
                 let syncOptions = channel.syncOptions
             {

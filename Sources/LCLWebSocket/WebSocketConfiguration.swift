@@ -93,14 +93,14 @@ extension LCLWebSocket {
 
         /// Socket receive buffer size in bytes.
         var socketReceiveBufferSize: SocketOptionValue?
-        
+
         /// Indicate that the underlying socket should reuse address or not.
         ///
         /// This option has no effect if `NIOTSEventLoopGroup` is used.
         ///
         /// - Note: see more in `man socket(7)`.
         var socketReuseAddress: Bool
-        
+
         /// Indicate that the socket should send the segments as soon as possible. If set, the Nagle algorithm is disabled.
         ///
         /// - Note: see more in `man socket(7)`
