@@ -13,6 +13,8 @@
 import Foundation
 import NIOCore
 
+typealias ChannelInitializerCallback = @Sendable (Channel) -> EventLoopFuture<Void>
+
 /// Bind the connection to the given `device` using the given `Channel`.
 ///
 /// - Parameters:

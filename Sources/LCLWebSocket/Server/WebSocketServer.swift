@@ -118,21 +118,14 @@ public struct WebSocketServer: Sendable, LCLWebSocketListenable {
     public func listen(to address: SocketAddress, configuration: LCLWebSocket.Configuration) -> EventLoopFuture<Void> {
         self.makeBootstrapAndBind(with: configuration, resolvedAddress: address) { channel in
             logger.debug("child channel: \(channel)")
-            if let tlsConfiguration = configuration.tlsConfiguration {
-                guard let sslContext = try? NIOSSLContext(configuration: tlsConfiguration) else {
-                    return channel.eventLoop.makeFailedFuture(LCLWebSocketError.tlsInitializationFailed)
-                }
-                let sslServerHandler = NIOSSLServerHandler(context: sslContext)
-                do {
-                    try channel.pipeline.syncOperations.addHandler(sslServerHandler)
-                } catch {
-                    return channel.eventLoop.makeFailedFuture(error)
-                }
+            do {
+                try self.makeChildChannelInitializer(configuration: configuration, channel: channel)
+            } catch {
+                return channel.eventLoop.makeFailedFuture(error)
             }
 
             return self.configureWebSocketServerUpgrade(on: channel, configuration: configuration)
-        }
-        .flatMap { channel in
+        }.flatMap { channel in
             channel.closeFuture
         }
     }
@@ -236,6 +229,32 @@ public struct WebSocketServer: Sendable, LCLWebSocketListenable {
 }
 
 extension WebSocketServer {
+
+    private func makeChildChannelInitializer(configuration: LCLWebSocket.Configuration, channel: Channel) throws {
+        if self.eventloopGroup is MultiThreadedEventLoopGroup {
+            if configuration.socketReuseAddress,
+                let syncOptions = channel.syncOptions
+            {
+                try syncOptions.setOption(.socketOption(.so_reuseaddr), value: 1)
+            }
+
+            if configuration.socketTcpNoDelay,
+                let syncOptions = channel.syncOptions
+            {
+                try syncOptions.setOption(.socketOption(.tcp_nodelay), value: 1)
+            }
+        }
+
+        // enable tls if configuration is provided
+        if let tlsConfiguration = configuration.tlsConfiguration {
+            guard let sslContext = try? NIOSSLContext(configuration: tlsConfiguration) else {
+                throw LCLWebSocketError.tlsInitializationFailed
+            }
+            let sslServerHandler = NIOSSLServerHandler(context: sslContext)
+            try channel.pipeline.syncOperations.addHandler(sslServerHandler)
+        }
+    }
+
     private func makeBootstrapAndBind(
         with configuration: LCLWebSocket.Configuration,
         resolvedAddress: SocketAddress,
@@ -246,25 +265,23 @@ extension WebSocketServer {
             ServerBootstrap(group: self.eventloopGroup)
                 .serverChannelInitializer { channel in
                     logger.info("Server is listening on \(resolvedAddress)")
-                    if self.eventloopGroup is MultiThreadedEventLoopGroup {
-                        if configuration.socketReuseAddress,
-                            let syncOptions = channel.syncOptions
-                        {
-                            do {
-                                try syncOptions.setOption(.socketOption(.so_reuseaddr), value: 1)
-                            } catch {
-                                return channel.eventLoop.makeFailedFuture(error)
-                            }
+                    if configuration.socketReuseAddress,
+                        let syncOptions = channel.syncOptions
+                    {
+                        do {
+                            try syncOptions.setOption(.socketOption(.so_reuseaddr), value: 1)
+                        } catch {
+                            return channel.eventLoop.makeFailedFuture(error)
                         }
+                    }
 
-                        if configuration.socketTcpNoDelay,
-                            let syncOptions = channel.syncOptions
-                        {
-                            do {
-                                try syncOptions.setOption(.socketOption(.tcp_nodelay), value: 1)
-                            } catch {
-                                return channel.eventLoop.makeFailedFuture(error)
-                            }
+                    if configuration.socketTcpNoDelay,
+                        let syncOptions = channel.syncOptions
+                    {
+                        do {
+                            try syncOptions.setOption(.socketOption(.tcp_nodelay), value: 1)
+                        } catch {
+                            return channel.eventLoop.makeFailedFuture(error)
                         }
                     }
 
@@ -348,7 +365,6 @@ extension WebSocketServer {
 
                     return channel.eventLoop.makeSucceededVoidFuture()
                 }
-                .childChannelOption(.socketOption(.so_reuseaddr), value: 1)
                 .childChannelInitializer(childChannelInitializer)
                 .bind(to: resolvedAddress)
         }
@@ -386,45 +402,14 @@ extension WebSocketServer {
     ) -> EventLoopFuture<Void> {
         self.makeBootstrapAndBind(with: configuration, resolvedAddress: address) { channel in
             logger.debug("child channel: \(channel)")
-
-            if self.eventloopGroup is MultiThreadedEventLoopGroup {
-                if configuration.socketReuseAddress,
-                    let syncOptions = channel.syncOptions
-                {
-                    do {
-                        try syncOptions.setOption(.socketOption(.so_reuseaddr), value: 1)
-                    } catch {
-                        return channel.eventLoop.makeFailedFuture(error)
-                    }
-                }
-
-                if configuration.socketTcpNoDelay,
-                    let syncOptions = channel.syncOptions
-                {
-                    do {
-                        try syncOptions.setOption(.socketOption(.tcp_nodelay), value: 1)
-                    } catch {
-                        return channel.eventLoop.makeFailedFuture(error)
-                    }
-                }
-            }
-
-            // enable tls if configuration is provided
-            if let tlsConfiguration = configuration.tlsConfiguration {
-                guard let sslContext = try? NIOSSLContext(configuration: tlsConfiguration) else {
-                    return channel.eventLoop.makeFailedFuture(LCLWebSocketError.tlsInitializationFailed)
-                }
-                let sslServerHandler = NIOSSLServerHandler(context: sslContext)
-                do {
-                    try channel.pipeline.syncOperations.addHandler(sslServerHandler)
-                } catch {
-                    return channel.eventLoop.makeFailedFuture(error)
-                }
+            do {
+                try self.makeChildChannelInitializer(configuration: configuration, channel: channel)
+            } catch {
+                return channel.eventLoop.makeFailedFuture(error)
             }
 
             return self.configureTypedWebSocketServerUpgrade(on: channel, configuration: configuration)
-        }
-        .flatMap { channel in
+        }.flatMap { channel in
             channel.closeFuture
         }
     }

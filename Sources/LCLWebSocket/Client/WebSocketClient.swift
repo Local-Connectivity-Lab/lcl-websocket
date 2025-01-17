@@ -162,90 +162,15 @@ public struct WebSocketClient: Sendable, LCLWebSocketListenable {
             return self.eventloopGroup.any().makeFailedFuture(LCLWebSocketError.invalidURL)
         }
 
-        @Sendable
-        func makeChannelInitializer(_ channel: Channel) -> EventLoopFuture<Void> {
-            if self.eventloopGroup is MultiThreadedEventLoopGroup {
-                if configuration.socketReuseAddress,
-                    let syncOptions = channel.syncOptions
-                {
-                    do {
-                        try syncOptions.setOption(.socketOption(.so_reuseaddr), value: 1)
-                    } catch {
-                        return channel.eventLoop.makeFailedFuture(error)
-                    }
-                }
-
-                if configuration.socketTcpNoDelay,
-                    let syncOptions = channel.syncOptions
-                {
-                    do {
-                        try syncOptions.setOption(.socketOption(.tcp_nodelay), value: 1)
-                    } catch {
-                        return channel.eventLoop.makeFailedFuture(error)
-                    }
-                }
-            }
-
-            if let socketSendBufferSize = configuration.socketSendBufferSize,
-                let syncOptions = channel.syncOptions
-            {
-                do {
-                    try syncOptions.setOption(.socketOption(.so_sndbuf), value: socketSendBufferSize)
-                } catch {
-                    return channel.eventLoop.makeFailedFuture(error)
-                }
-            }
-
-            if let socketReceiveBuffer = configuration.socketReceiveBufferSize,
-                let syncOptions = channel.syncOptions
-            {
-                do {
-                    try syncOptions.setOption(.socketOption(.so_rcvbuf), value: socketReceiveBuffer)
-                } catch {
-                    return channel.eventLoop.makeFailedFuture(error)
-                }
-            }
-
-            // bind to selected device, if any
-            if let deviceName = configuration.deviceName,
-                let device = findDevice(with: deviceName, protocol: resolvedAddress.protocol)
-            {
-                do {
-                    try bindTo(device: device, on: channel)
-                } catch {
-                    return channel.eventLoop.makeFailedFuture(error)
-                }
-            }
-
-            // enable TLS
-            if scheme.enableTLS {
-                let tlsConfig = configuration.tlsConfiguration ?? scheme.defaultTLSConfig!
-                guard let sslContext = try? NIOSSLContext(configuration: tlsConfig) else {
-                    return channel.eventLoop.makeFailedFuture(LCLWebSocketError.tlsInitializationFailed)
-                }
-
-                do {
-                    let sslClientHandler = try NIOSSLClientHandler(context: sslContext, serverHostname: host)
-                    try channel.pipeline.syncOperations.addHandlers(sslClientHandler)
-                } catch let error as NIOSSLExtraError where error == .invalidSNIHostname {
-                    do {
-                        let sslClientHandler = try NIOSSLClientHandler(context: sslContext, serverHostname: nil)
-                        try channel.pipeline.syncOperations.addHandlers(sslClientHandler)
-                    } catch {
-                        return channel.eventLoop.makeFailedFuture(error)
-                    }
-                } catch {
-                    return channel.eventLoop.makeFailedFuture(error)
-                }
-            }
-
-            return channel.eventLoop.makeSucceededVoidFuture()
-        }
-
         return self.makeBootstrapAndConnect(
             with: configuration,
             resolvedAddress: resolvedAddress,
-            channelInitializer: makeChannelInitializer(_:)
+            channelInitializer: makeChannelInitializer(
+                configuration: configuration,
+                resolvedAddress: resolvedAddress,
+                scheme: scheme,
+                host: host
+            )
         ).flatMap { channel in
             let upgrader = NIOWebSocketClientUpgrader(
                 maxFrameSize: configuration.maxFrameSize,
@@ -391,6 +316,95 @@ extension WebSocketClient {
         return makeClientBootstrap()
         #endif
     }
+
+    private func makeChannelInitializer(
+        configuration: LCLWebSocket.Configuration,
+        resolvedAddress: SocketAddress,
+        scheme: WebSocketScheme,
+        host: String
+    ) -> ChannelInitializerCallback {
+        @Sendable
+        func makeChannelInitializer(_ channel: Channel) -> EventLoopFuture<Void> {
+            if self.eventloopGroup is MultiThreadedEventLoopGroup {
+                if configuration.socketReuseAddress,
+                    let syncOptions = channel.syncOptions
+                {
+                    do {
+                        try syncOptions.setOption(.socketOption(.so_reuseaddr), value: 1)
+                    } catch {
+                        return channel.eventLoop.makeFailedFuture(error)
+                    }
+                }
+
+                if configuration.socketTcpNoDelay,
+                    let syncOptions = channel.syncOptions
+                {
+                    do {
+                        try syncOptions.setOption(.socketOption(.tcp_nodelay), value: 1)
+                    } catch {
+                        return channel.eventLoop.makeFailedFuture(error)
+                    }
+                }
+            }
+
+            if let socketSendBufferSize = configuration.socketSendBufferSize,
+                let syncOptions = channel.syncOptions
+            {
+                do {
+                    try syncOptions.setOption(.socketOption(.so_sndbuf), value: socketSendBufferSize)
+                } catch {
+                    return channel.eventLoop.makeFailedFuture(error)
+                }
+            }
+
+            if let socketReceiveBuffer = configuration.socketReceiveBufferSize,
+                let syncOptions = channel.syncOptions
+            {
+                do {
+                    try syncOptions.setOption(.socketOption(.so_rcvbuf), value: socketReceiveBuffer)
+                } catch {
+                    return channel.eventLoop.makeFailedFuture(error)
+                }
+            }
+
+            // bind to selected device, if any
+            if let deviceName = configuration.deviceName,
+                let device = findDevice(with: deviceName, protocol: resolvedAddress.protocol)
+            {
+                do {
+                    try bindTo(device: device, on: channel)
+                } catch {
+                    return channel.eventLoop.makeFailedFuture(error)
+                }
+            }
+
+            // enable TLS
+            if scheme.enableTLS {
+                let tlsConfig = configuration.tlsConfiguration ?? scheme.defaultTLSConfig!
+                guard let sslContext = try? NIOSSLContext(configuration: tlsConfig) else {
+                    return channel.eventLoop.makeFailedFuture(LCLWebSocketError.tlsInitializationFailed)
+                }
+
+                do {
+                    let sslClientHandler = try NIOSSLClientHandler(context: sslContext, serverHostname: host)
+                    try channel.pipeline.syncOperations.addHandlers(sslClientHandler)
+                } catch let error as NIOSSLExtraError where error == .invalidSNIHostname {
+                    do {
+                        let sslClientHandler = try NIOSSLClientHandler(context: sslContext, serverHostname: nil)
+                        try channel.pipeline.syncOperations.addHandlers(sslClientHandler)
+                    } catch {
+                        return channel.eventLoop.makeFailedFuture(error)
+                    }
+                } catch {
+                    return channel.eventLoop.makeFailedFuture(error)
+                }
+            }
+
+            return channel.eventLoop.makeSucceededVoidFuture()
+        }
+
+        return makeChannelInitializer
+    }
 }
 
 #if !canImport(Darwin) || swift(>=5.10)
@@ -483,90 +497,15 @@ extension WebSocketClient {
             return self.eventloopGroup.any().makeFailedFuture(LCLWebSocketError.invalidURL)
         }
 
-        @Sendable
-        func makeChannelInitializer(_ channel: Channel) -> EventLoopFuture<Void> {
-            if self.eventloopGroup is MultiThreadedEventLoopGroup {
-                if configuration.socketReuseAddress,
-                    let syncOptions = channel.syncOptions
-                {
-                    do {
-                        try syncOptions.setOption(.socketOption(.so_reuseaddr), value: 1)
-                    } catch {
-                        return channel.eventLoop.makeFailedFuture(error)
-                    }
-                }
-
-                if configuration.socketTcpNoDelay,
-                    let syncOptions = channel.syncOptions
-                {
-                    do {
-                        try syncOptions.setOption(.socketOption(.tcp_nodelay), value: 1)
-                    } catch {
-                        return channel.eventLoop.makeFailedFuture(error)
-                    }
-                }
-            }
-
-            if let socketSendBufferSize = configuration.socketSendBufferSize,
-                let syncOptions = channel.syncOptions
-            {
-                do {
-                    try syncOptions.setOption(.socketOption(.so_sndbuf), value: socketSendBufferSize)
-                } catch {
-                    return channel.eventLoop.makeFailedFuture(error)
-                }
-            }
-
-            if let socketReceiveBuffer = configuration.socketReceiveBufferSize,
-                let syncOptions = channel.syncOptions
-            {
-                do {
-                    try syncOptions.setOption(.socketOption(.so_rcvbuf), value: socketReceiveBuffer)
-                } catch {
-                    return channel.eventLoop.makeFailedFuture(error)
-                }
-            }
-
-            // bind to selected device, if any
-            if let deviceName = configuration.deviceName,
-                let device = findDevice(with: deviceName, protocol: resolvedAddress.protocol)
-            {
-                do {
-                    try bindTo(device: device, on: channel)
-                } catch {
-                    return channel.eventLoop.makeFailedFuture(error)
-                }
-            }
-
-            // enable TLS
-            if scheme.enableTLS {
-                let tlsConfig = configuration.tlsConfiguration ?? scheme.defaultTLSConfig!
-                guard let sslContext = try? NIOSSLContext(configuration: tlsConfig) else {
-                    return channel.eventLoop.makeFailedFuture(LCLWebSocketError.tlsInitializationFailed)
-                }
-
-                do {
-                    let sslClientHandler = try NIOSSLClientHandler(context: sslContext, serverHostname: host)
-                    try channel.pipeline.syncOperations.addHandlers(sslClientHandler)
-                } catch let error as NIOSSLExtraError where error == .invalidSNIHostname {
-                    do {
-                        let sslClientHandler = try NIOSSLClientHandler(context: sslContext, serverHostname: nil)
-                        try channel.pipeline.syncOperations.addHandlers(sslClientHandler)
-                    } catch {
-                        return channel.eventLoop.makeFailedFuture(error)
-                    }
-                } catch {
-                    return channel.eventLoop.makeFailedFuture(error)
-                }
-            }
-
-            return channel.eventLoop.makeSucceededVoidFuture()
-        }
-
         let upgradeResult = makeBootstrapAndConnect(
             with: configuration,
             resolvedAddress: resolvedAddress,
-            channelInitializer: makeChannelInitializer(_:)
+            channelInitializer: makeChannelInitializer(
+                configuration: configuration,
+                resolvedAddress: resolvedAddress,
+                scheme: scheme,
+                host: host
+            )
         ).flatMap { channel in
             // make upgrade request
             let upgrader = NIOTypedWebSocketClientUpgrader<WebSocketUpgradeResult>(
