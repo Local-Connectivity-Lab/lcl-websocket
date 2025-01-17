@@ -47,6 +47,7 @@ public struct WebSocketServer: Sendable, LCLWebSocketListenable {
     private var _onError: (@Sendable (Error) -> Void)?
 
     private let isShutdown: ManagedAtomic<Bool>
+    private let isMultiThreadedEventLoop: Bool
 
     /// Initialize a `WebSocketServer` instance on the given `EventLoopGroup` using the provided `serverConfiguration`
     ///
@@ -60,6 +61,7 @@ public struct WebSocketServer: Sendable, LCLWebSocketListenable {
         self.eventloopGroup = eventloopGroup
         self.serverUpgradeConfiguration = serverUpgradeConfiguration
         self.isShutdown = ManagedAtomic(false)
+        self.isMultiThreadedEventLoop = self.eventloopGroup is MultiThreadedEventLoopGroup
     }
 
     public mutating func onOpen(_ callback: (@Sendable (WebSocket) -> Void)?) {
@@ -119,7 +121,7 @@ public struct WebSocketServer: Sendable, LCLWebSocketListenable {
         self.makeBootstrapAndBind(with: configuration, resolvedAddress: address) { channel in
             logger.debug("child channel: \(channel)")
             do {
-                try self.makeChildChannelInitializer(configuration: configuration, channel: channel)
+                try self.initializeChildChannel(using: configuration, on: channel)
             } catch {
                 return channel.eventLoop.makeFailedFuture(error)
             }
@@ -230,7 +232,7 @@ public struct WebSocketServer: Sendable, LCLWebSocketListenable {
 
 extension WebSocketServer {
 
-    private func makeChildChannelInitializer(configuration: LCLWebSocket.Configuration, channel: Channel) throws {
+    private func initializeChildChannel(using configuration: LCLWebSocket.Configuration, on channel: Channel) throws {
         if self.eventloopGroup is MultiThreadedEventLoopGroup {
             if configuration.socketReuseAddress,
                 let syncOptions = channel.syncOptions
@@ -326,6 +328,7 @@ extension WebSocketServer {
         func makeNIOTSListenerBootstrap() -> EventLoopFuture<Channel> {
 
             let tcpOptions = NWProtocolTCP.Options()
+            tcpOptions.connectionTimeout = Int(configuration.connectionTimeout.seconds)
             tcpOptions.noDelay = configuration.socketTcpNoDelay
 
             return NIOTSListenerBootstrap(group: self.eventloopGroup)
@@ -371,7 +374,7 @@ extension WebSocketServer {
         #endif
 
         #if canImport(Network)
-        if self.eventloopGroup is MultiThreadedEventLoopGroup {
+        if self.isMultiThreadedEventLoop {
             return makeServerBootstrap()
         } else {
             return makeNIOTSListenerBootstrap()
@@ -403,7 +406,7 @@ extension WebSocketServer {
         self.makeBootstrapAndBind(with: configuration, resolvedAddress: address) { channel in
             logger.debug("child channel: \(channel)")
             do {
-                try self.makeChildChannelInitializer(configuration: configuration, channel: channel)
+                try self.initializeChildChannel(using: configuration, on: channel)
             } catch {
                 return channel.eventLoop.makeFailedFuture(error)
             }
@@ -465,7 +468,6 @@ extension WebSocketServer {
                     ),
                     WebSocketHandler(websocket: websocket),
                 ])
-                print(channel.pipeline.debugDescription, channel)
                 return channel.eventLoop.makeSucceededFuture(UpgradeResult.websocket)
             } catch {
                 return channel.eventLoop.makeFailedFuture(error)

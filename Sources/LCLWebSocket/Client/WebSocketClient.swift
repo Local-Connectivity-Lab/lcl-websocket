@@ -45,6 +45,7 @@ public struct WebSocketClient: Sendable, LCLWebSocketListenable {
     private var _onError: (@Sendable (Error) -> Void)?
 
     private let isShutdown: ManagedAtomic<Bool>
+    private let isMultiThreadedEventloop: Bool
 
     /// Initialize the `WebSocketClient` instance on the given `EventLoopGroup`
     ///
@@ -53,6 +54,7 @@ public struct WebSocketClient: Sendable, LCLWebSocketListenable {
     init(on eventloopGroup: any EventLoopGroup) {
         self.eventloopGroup = eventloopGroup
         self.isShutdown = ManagedAtomic(false)
+        self.isMultiThreadedEventloop = self.eventloopGroup is MultiThreadedEventLoopGroup
     }
 
     public mutating func onOpen(_ callback: (@Sendable (WebSocket) -> Void)?) {
@@ -307,7 +309,7 @@ extension WebSocketClient {
         #endif
 
         #if canImport(Network)
-        if self.eventloopGroup is MultiThreadedEventLoopGroup {
+        if self.isMultiThreadedEventloop {
             return makeClientBootstrap()
         } else {
             return makeNIOTSConnectionBootstrap()
@@ -322,10 +324,10 @@ extension WebSocketClient {
         resolvedAddress: SocketAddress,
         scheme: WebSocketScheme,
         host: String
-    ) -> ChannelInitializerCallback {
+    ) -> ChannelInitializer {
         @Sendable
         func makeChannelInitializer(_ channel: Channel) -> EventLoopFuture<Void> {
-            if self.eventloopGroup is MultiThreadedEventLoopGroup {
+            if self.isMultiThreadedEventloop {
                 if configuration.socketReuseAddress,
                     let syncOptions = channel.syncOptions
                 {
