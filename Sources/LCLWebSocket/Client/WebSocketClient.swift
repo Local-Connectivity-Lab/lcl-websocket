@@ -341,20 +341,12 @@ extension WebSocketClient {
     ) -> ChannelInitializer {
         @Sendable
         func makeChannelInitializer(_ channel: Channel) -> EventLoopFuture<Void> {
-            let promise = channel.eventLoop.makePromise(of: Void.self)
-            if let deviceName = configuration.deviceName,
-                let device = findDevice(with: deviceName, protocol: resolvedAddress.protocol)
-            {
-                // bind to selected device, if any
-                bindTo(device: device, on: channel).cascadeFailure(to: promise)
-            }
-
             if scheme.enableTLS {
                 // enale TLS
                 let tlsConfig = configuration.tlsConfiguration ?? scheme.defaultTLSConfig!
                 guard let sslContext = try? NIOSSLContext(configuration: tlsConfig) else {
-                    promise.fail(LCLWebSocketError.tlsInitializationFailed)
-                    return promise.futureResult
+
+                    return channel.eventLoop.makeFailedFuture(LCLWebSocketError.tlsInitializationFailed)
                 }
 
                 do {
@@ -365,16 +357,21 @@ extension WebSocketClient {
                         let sslClientHandler = try NIOSSLClientHandler(context: sslContext, serverHostname: nil)
                         try channel.pipeline.syncOperations.addHandlers(sslClientHandler)
                     } catch {
-                        promise.fail(error)
-                        return promise.futureResult
+                        return channel.eventLoop.makeFailedFuture(error)
                     }
                 } catch {
-                    promise.fail(error)
-                    return promise.futureResult
+                    return channel.eventLoop.makeFailedFuture(error)
                 }
             }
-            promise.succeed()
-            return promise.futureResult
+
+            if let deviceName = configuration.deviceName,
+                let device = findDevice(with: deviceName, protocol: resolvedAddress.protocol)
+            {
+                // bind to selected device, if any
+                return bindTo(device: device, on: channel)
+            }
+
+            return channel.eventLoop.makeSucceededVoidFuture()
         }
 
         return makeChannelInitializer
