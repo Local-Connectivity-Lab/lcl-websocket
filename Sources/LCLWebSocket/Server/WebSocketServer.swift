@@ -233,20 +233,6 @@ public struct WebSocketServer: Sendable, LCLWebSocketListenable {
 extension WebSocketServer {
 
     private func initializeChildChannel(using configuration: LCLWebSocket.Configuration, on channel: Channel) throws {
-        if self.eventloopGroup is MultiThreadedEventLoopGroup {
-            if configuration.socketReuseAddress,
-                let syncOptions = channel.syncOptions
-            {
-                try syncOptions.setOption(.socketOption(.so_reuseaddr), value: 1)
-            }
-
-            if configuration.socketTcpNoDelay,
-                let syncOptions = channel.syncOptions
-            {
-                try syncOptions.setOption(.socketOption(.tcp_nodelay), value: 1)
-            }
-        }
-
         // enable tls if configuration is provided
         if let tlsConfiguration = configuration.tlsConfiguration {
             guard let sslContext = try? NIOSSLContext(configuration: tlsConfiguration) else {
@@ -265,57 +251,20 @@ extension WebSocketServer {
 
         func makeServerBootstrap() -> EventLoopFuture<Channel> {
             ServerBootstrap(group: self.eventloopGroup)
+                .serverChannelOption(.socketOption(.so_reuseaddr), value: SocketOptionValue(configuration.socketReuseAddress ? 1 : 0))
+                .serverChannelOption(.tcpOption(.tcp_nodelay), value: SocketOptionValue(configuration.socketTcpNoDelay ? 1 : 0))
+                .childChannelOption(.socketOption(.so_reuseaddr), value: SocketOptionValue(configuration.socketReuseAddress ? 1 : 0))
+                .childChannelOption(.tcpOption(.tcp_nodelay), value: SocketOptionValue(configuration.socketTcpNoDelay ? 1 : 0))
+                .childChannelOption(.socketOption(.so_sndbuf), value: configuration.socketSendBufferSize)
+                .childChannelOption(.socketOption(.so_rcvbuf), value: configuration.socketReceiveBufferSize)
                 .serverChannelInitializer { channel in
                     logger.info("Server is listening on \(resolvedAddress)")
-                    if configuration.socketReuseAddress,
-                        let syncOptions = channel.syncOptions
-                    {
-                        do {
-                            try syncOptions.setOption(.socketOption(.so_reuseaddr), value: 1)
-                        } catch {
-                            return channel.eventLoop.makeFailedFuture(error)
-                        }
-                    }
-
-                    if configuration.socketTcpNoDelay,
-                        let syncOptions = channel.syncOptions
-                    {
-                        do {
-                            try syncOptions.setOption(.socketOption(.tcp_nodelay), value: 1)
-                        } catch {
-                            return channel.eventLoop.makeFailedFuture(error)
-                        }
-                    }
-
-                    if let socketSendBufferSize = configuration.socketSendBufferSize,
-                        let syncOptions = channel.syncOptions
-                    {
-                        do {
-                            try syncOptions.setOption(.socketOption(.so_sndbuf), value: socketSendBufferSize)
-                        } catch {
-                            return channel.eventLoop.makeFailedFuture(error)
-                        }
-                    }
-
-                    if let socketReceiveBuffer = configuration.socketReceiveBufferSize,
-                        let syncOptions = channel.syncOptions
-                    {
-                        do {
-                            try syncOptions.setOption(.socketOption(.so_rcvbuf), value: socketReceiveBuffer)
-                        } catch {
-                            return channel.eventLoop.makeFailedFuture(error)
-                        }
-                    }
 
                     // bind to selected device, if any
                     if let deviceName = configuration.deviceName,
                         let device = findDevice(with: deviceName, protocol: resolvedAddress.protocol)
                     {
-                        do {
-                            try bindTo(device: device, on: channel)
-                        } catch {
-                            return channel.eventLoop.makeFailedFuture(error)
-                        }
+                        return bindTo(device: device, on: channel)
                     }
 
                     return channel.eventLoop.makeSucceededVoidFuture()
@@ -333,37 +282,16 @@ extension WebSocketServer {
 
             return NIOTSListenerBootstrap(group: self.eventloopGroup)
                 .tcpOptions(tcpOptions)
+                .serverChannelOption(.socketOption(.so_reuseaddr), value: SocketOptionValue(configuration.socketReuseAddress ? 1 : 0))
+                .childChannelOption(.socketOption(.so_reuseaddr), value: SocketOptionValue(configuration.socketReuseAddress ? 1 : 0))
                 .serverChannelInitializer { channel in
                     logger.info("Server is listening on \(resolvedAddress)")
-                    if let socketSendBufferSize = configuration.socketSendBufferSize,
-                        let syncOptions = channel.syncOptions
-                    {
-                        do {
-                            try syncOptions.setOption(.socketOption(.so_sndbuf), value: socketSendBufferSize)
-                        } catch {
-                            return channel.eventLoop.makeFailedFuture(error)
-                        }
-                    }
-
-                    if let socketReceiveBuffer = configuration.socketReceiveBufferSize,
-                        let syncOptions = channel.syncOptions
-                    {
-                        do {
-                            try syncOptions.setOption(.socketOption(.so_rcvbuf), value: socketReceiveBuffer)
-                        } catch {
-                            return channel.eventLoop.makeFailedFuture(error)
-                        }
-                    }
 
                     // bind to selected device, if any
                     if let deviceName = configuration.deviceName,
                         let device = findDevice(with: deviceName, protocol: resolvedAddress.protocol)
                     {
-                        do {
-                            try bindTo(device: device, on: channel)
-                        } catch {
-                            return channel.eventLoop.makeFailedFuture(error)
-                        }
+                        return bindTo(device: device, on: channel)
                     }
 
                     return channel.eventLoop.makeSucceededVoidFuture()

@@ -290,6 +290,10 @@ extension WebSocketClient {
 
         func makeClientBootstrap() -> EventLoopFuture<Channel> {
             ClientBootstrap(group: self.eventloopGroup)
+                .channelOption(.socketOption(.so_reuseaddr), value: SocketOptionValue(configuration.socketReuseAddress ? 1 : 0))
+                .channelOption(.tcpOption(.tcp_nodelay), value: SocketOptionValue(configuration.socketTcpNoDelay ? 1 : 0))
+                .channelOption(.socketOption(.so_sndbuf), value: configuration.socketSendBufferSize)
+                .channelOption(.socketOption(.so_rcvbuf), value: configuration.socketReceiveBufferSize)
                 .connectTimeout(configuration.connectionTimeout)
                 .channelInitializer(channelInitializer)
                 .connect(to: resolvedAddress)
@@ -303,6 +307,7 @@ extension WebSocketClient {
 
             return NIOTSConnectionBootstrap(group: self.eventloopGroup)
                 .tcpOptions(tcpOptions)
+                .channelOption(.socketOption(.so_reuseaddr), value: SocketOptionValue(configuration.socketReuseAddress ? 1 : 0))
                 .channelInitializer(channelInitializer)
                 .connect(to: resolvedAddress)
         }
@@ -327,81 +332,34 @@ extension WebSocketClient {
     ) -> ChannelInitializer {
         @Sendable
         func makeChannelInitializer(_ channel: Channel) -> EventLoopFuture<Void> {
-            if self.isMultiThreadedEventloop {
-                if configuration.socketReuseAddress,
-                    let syncOptions = channel.syncOptions
-                {
-                    do {
-                        try syncOptions.setOption(.socketOption(.so_reuseaddr), value: 1)
-                    } catch {
-                        return channel.eventLoop.makeFailedFuture(error)
-                    }
-                }
-
-                if configuration.socketTcpNoDelay,
-                    let syncOptions = channel.syncOptions
-                {
-                    do {
-                        try syncOptions.setOption(.socketOption(.tcp_nodelay), value: 1)
-                    } catch {
-                        return channel.eventLoop.makeFailedFuture(error)
-                    }
-                }
-            }
-
-            if let socketSendBufferSize = configuration.socketSendBufferSize,
-                let syncOptions = channel.syncOptions
-            {
-                do {
-                    try syncOptions.setOption(.socketOption(.so_sndbuf), value: socketSendBufferSize)
-                } catch {
-                    return channel.eventLoop.makeFailedFuture(error)
-                }
-            }
-
-            if let socketReceiveBuffer = configuration.socketReceiveBufferSize,
-                let syncOptions = channel.syncOptions
-            {
-                do {
-                    try syncOptions.setOption(.socketOption(.so_rcvbuf), value: socketReceiveBuffer)
-                } catch {
-                    return channel.eventLoop.makeFailedFuture(error)
-                }
-            }
-
-            // bind to selected device, if any
             if let deviceName = configuration.deviceName,
-                let device = findDevice(with: deviceName, protocol: resolvedAddress.protocol)
-            {
-                do {
-                    try bindTo(device: device, on: channel)
-                } catch {
-                    return channel.eventLoop.makeFailedFuture(error)
-                }
-            }
+                let device = findDevice(with: deviceName, protocol: resolvedAddress.protocol) {
+                // bind to selected device, if any
+                return bindTo(device: device, on: channel).flatMap { () -> EventLoopFuture<Void> in
+                    if scheme.enableTLS {
+                        // enale TLS
+                        let tlsConfig = configuration.tlsConfiguration ?? scheme.defaultTLSConfig!
+                        guard let sslContext = try? NIOSSLContext(configuration: tlsConfig) else {
+                            return channel.eventLoop.makeFailedFuture(LCLWebSocketError.tlsInitializationFailed)
+                        }
 
-            // enable TLS
-            if scheme.enableTLS {
-                let tlsConfig = configuration.tlsConfiguration ?? scheme.defaultTLSConfig!
-                guard let sslContext = try? NIOSSLContext(configuration: tlsConfig) else {
-                    return channel.eventLoop.makeFailedFuture(LCLWebSocketError.tlsInitializationFailed)
-                }
-
-                do {
-                    let sslClientHandler = try NIOSSLClientHandler(context: sslContext, serverHostname: host)
-                    try channel.pipeline.syncOperations.addHandlers(sslClientHandler)
-                } catch let error as NIOSSLExtraError where error == .invalidSNIHostname {
-                    do {
-                        let sslClientHandler = try NIOSSLClientHandler(context: sslContext, serverHostname: nil)
-                        try channel.pipeline.syncOperations.addHandlers(sslClientHandler)
-                    } catch {
-                        return channel.eventLoop.makeFailedFuture(error)
+                        do {
+                            let sslClientHandler = try NIOSSLClientHandler(context: sslContext, serverHostname: host)
+                            try channel.pipeline.syncOperations.addHandlers(sslClientHandler)
+                        } catch let error as NIOSSLExtraError where error == .invalidSNIHostname {
+                            do {
+                                let sslClientHandler = try NIOSSLClientHandler(context: sslContext, serverHostname: nil)
+                                try channel.pipeline.syncOperations.addHandlers(sslClientHandler)
+                            } catch {
+                                return channel.eventLoop.makeFailedFuture(error)
+                            }
+                        } catch {
+                            return channel.eventLoop.makeFailedFuture(error)
+                        }
                     }
-                } catch {
-                    return channel.eventLoop.makeFailedFuture(error)
+                    return channel.eventLoop.makeSucceededVoidFuture()
                 }
             }
-
             return channel.eventLoop.makeSucceededVoidFuture()
         }
 

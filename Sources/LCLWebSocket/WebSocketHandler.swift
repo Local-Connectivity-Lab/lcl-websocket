@@ -20,6 +20,14 @@ final class WebSocketHandler: ChannelInboundHandler {
     init(websocket: WebSocket) {
         self.websocket = websocket
     }
+    
+    func channelInactive(context: ChannelHandlerContext) {
+        logger.debug("WebSocketHandler channelInactive")
+    }
+    
+    func channelUnregistered(context: ChannelHandlerContext) {
+        logger.debug("WebSocketHandler channelUnregistered")
+    }
 
     func channelRead(context: ChannelHandlerContext, data: NIOAny) {
         let frame = self.unwrapInboundIn(data)
@@ -31,14 +39,10 @@ final class WebSocketHandler: ChannelInboundHandler {
         if let err = error as? NIOWebSocketError {
             self.websocket.close(
                 code: WebSocketErrorCode(err),
-                shouldForceCloseConnection: self.websocket.type == .server,
                 promise: nil
             )
-        } else {
-            self.websocket.close(code: .protocolError, shouldForceCloseConnection: true, promise: nil)
         }
-
-        context.fireErrorCaught(error)
+        context.close(mode: .all, promise: nil)
     }
 }
 

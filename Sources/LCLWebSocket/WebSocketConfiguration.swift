@@ -89,14 +89,16 @@ extension LCLWebSocket {
         var autoPingConfiguration: AutoPingConfiguration
 
         /// Socket send buffer size in bytes.
-        var socketSendBufferSize: SocketOptionValue?
+        ///
+        /// This option will not be applied if `NIOTSEventLoopGroup` is used.
+        var socketSendBufferSize: SocketOptionValue
 
         /// Socket receive buffer size in bytes.
-        var socketReceiveBufferSize: SocketOptionValue?
+        ///
+        /// This option will not be applied if `NIOTSEventLoopGroup` is used.
+        var socketReceiveBufferSize: SocketOptionValue
 
         /// Indicate that the underlying socket should reuse address or not.
-        ///
-        /// This option has no effect if `NIOTSEventLoopGroup` is used.
         ///
         /// - Note: see more in `man socket(7)`.
         var socketReuseAddress: Bool
@@ -127,8 +129,8 @@ extension LCLWebSocket {
             ),
             leftoverBytesStrategy: RemoveAfterUpgradeStrategy = .dropBytes,
             deviceName: String? = nil,
-            socketSendBufferSize: SocketOptionValue? = nil,
-            socketReceiveBufferSize: SocketOptionValue? = nil,
+            socketSendBufferSize: SocketOptionValue = 16384,
+            socketReceiveBufferSize: SocketOptionValue = 131072,
             socketReuseAddress: Bool = false,
             socketTcpNoDelay: Bool = true
         ) {

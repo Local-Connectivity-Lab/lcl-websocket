@@ -26,6 +26,7 @@ struct TestWebSocketClient {
 
     static let serverAddress = "127.0.0.1"
     static let serverPort = 9001
+    static let agentName = "LCLWebSocketClient"
 
     public static func main() throws {
 
@@ -55,16 +56,20 @@ struct TestWebSocketClient {
                 ws.send(binary, opcode: .binary)
             }
             try client.connect(
-                to: "ws://\(Self.serverAddress):\(Self.serverPort)/runCase?case=\(i)&agent={LCLWebSocketClient}",
+                to: "ws://\(Self.serverAddress):\(Self.serverPort)/runCase?case=\(i)&agent=\(Self.agentName)",
                 configuration: Self.config
             ).wait()
         }
 
         let closeClient = LCLWebSocket.client()
-        try closeClient.connect(
-            to: "ws://\(Self.serverAddress):\(Self.serverPort)/updateReports?agent={LCLWebSocketClient}",
-            configuration: Self.config
-        ).wait()
+        do {
+            try closeClient.connect(
+                to: "ws://\(Self.serverAddress):\(Self.serverPort)/updateReports?agent=\(Self.agentName)",
+                configuration: Self.config
+            ).wait()
+        } catch {
+            print("Error closing client: \(error)")
+        }
 
     }
 }

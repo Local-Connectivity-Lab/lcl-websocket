@@ -34,7 +34,6 @@ protocol LCLWebSocketListenable {
     mutating func onBinary(_ onBinary: (@Sendable (WebSocket, ByteBuffer) -> Void)?)
 
     /// Invoked when both peers have indicated that no more messages will be transmitted and
-    /// the connection has been successfully released. No further calls to this listener will be made.
     mutating func onClosing(_ onBinary: (@Sendable (WebSocketErrorCode?, String?) -> Void)?)
 
     /// Invoked when the remote peer has indicated that no more incoming messages will be transmitted.
