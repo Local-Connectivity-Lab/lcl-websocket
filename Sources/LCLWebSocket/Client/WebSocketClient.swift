@@ -348,7 +348,7 @@ extension WebSocketClient {
                 // bind to selected device, if any
                 bindTo(device: device, on: channel).cascadeFailure(to: promise)
             }
-            
+
             if scheme.enableTLS {
                 // enale TLS
                 let tlsConfig = configuration.tlsConfiguration ?? scheme.defaultTLSConfig!
