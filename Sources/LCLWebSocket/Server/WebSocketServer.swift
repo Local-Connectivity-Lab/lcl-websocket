@@ -47,6 +47,7 @@ public struct WebSocketServer: Sendable, LCLWebSocketListenable {
     private var _onError: (@Sendable (Error) -> Void)?
 
     private let isShutdown: ManagedAtomic<Bool>
+    private let isMultiThreadedEventLoop: Bool
 
     /// Initialize a `WebSocketServer` instance on the given `EventLoopGroup` using the provided `serverConfiguration`
     ///
@@ -60,6 +61,7 @@ public struct WebSocketServer: Sendable, LCLWebSocketListenable {
         self.eventloopGroup = eventloopGroup
         self.serverUpgradeConfiguration = serverUpgradeConfiguration
         self.isShutdown = ManagedAtomic(false)
+        self.isMultiThreadedEventLoop = self.eventloopGroup is MultiThreadedEventLoopGroup
     }
 
     public mutating func onOpen(_ callback: (@Sendable (WebSocket) -> Void)?) {
@@ -118,21 +120,14 @@ public struct WebSocketServer: Sendable, LCLWebSocketListenable {
     public func listen(to address: SocketAddress, configuration: LCLWebSocket.Configuration) -> EventLoopFuture<Void> {
         self.makeBootstrapAndBind(with: configuration, resolvedAddress: address) { channel in
             logger.debug("child channel: \(channel)")
-            if let tlsConfiguration = configuration.tlsConfiguration {
-                guard let sslContext = try? NIOSSLContext(configuration: tlsConfiguration) else {
-                    return channel.eventLoop.makeFailedFuture(LCLWebSocketError.tlsInitializationFailed)
-                }
-                let sslServerHandler = NIOSSLServerHandler(context: sslContext)
-                do {
-                    try channel.pipeline.syncOperations.addHandler(sslServerHandler)
-                } catch {
-                    return channel.eventLoop.makeFailedFuture(error)
-                }
+            do {
+                try self.initializeChildChannel(using: configuration, on: channel)
+            } catch {
+                return channel.eventLoop.makeFailedFuture(error)
             }
 
             return self.configureWebSocketServerUpgrade(on: channel, configuration: configuration)
-        }
-        .flatMap { channel in
+        }.flatMap { channel in
             channel.closeFuture
         }
     }
@@ -236,108 +231,111 @@ public struct WebSocketServer: Sendable, LCLWebSocketListenable {
 }
 
 extension WebSocketServer {
+
+    private func initializeChildChannel(using configuration: LCLWebSocket.Configuration, on channel: Channel) throws {
+        // enable tls if configuration is provided
+        if let tlsConfiguration = configuration.tlsConfiguration {
+            guard let sslContext = try? NIOSSLContext(configuration: tlsConfiguration) else {
+                throw LCLWebSocketError.tlsInitializationFailed
+            }
+            let sslServerHandler = NIOSSLServerHandler(context: sslContext)
+            try channel.pipeline.syncOperations.addHandler(sslServerHandler)
+        }
+    }
+
     private func makeBootstrapAndBind(
         with configuration: LCLWebSocket.Configuration,
         resolvedAddress: SocketAddress,
         childChannelInitializer: @escaping (Channel) -> EventLoopFuture<Void>
     ) -> EventLoopFuture<Channel> {
-        if self.eventloopGroup is MultiThreadedEventLoopGroup {
-            return ServerBootstrap(group: self.eventloopGroup)
-                .serverChannelOption(.socketOption(.so_reuseaddr), value: 1)
-                .serverChannelInitializer { channel in
-                    print("parent channel: \(channel)")
-                    if let socketSendBufferSize = configuration.socketSendBufferSize,
-                        let syncOptions = channel.syncOptions
-                    {
-                        do {
-                            try syncOptions.setOption(.socketOption(.so_sndbuf), value: socketSendBufferSize)
-                        } catch {
-                            return channel.eventLoop.makeFailedFuture(error)
-                        }
-                    }
 
-                    if let socketReceiveBuffer = configuration.socketReceiveBufferSize,
-                        let syncOptions = channel.syncOptions
-                    {
-                        do {
-                            try syncOptions.setOption(.socketOption(.so_rcvbuf), value: socketReceiveBuffer)
-                        } catch {
-                            return channel.eventLoop.makeFailedFuture(error)
-                        }
-                    }
+        func makeServerBootstrap() -> EventLoopFuture<Channel> {
+            ServerBootstrap(group: self.eventloopGroup)
+                .serverChannelOption(
+                    .socketOption(.so_reuseaddr),
+                    value: SocketOptionValue(configuration.socketReuseAddress ? 1 : 0)
+                )
+                .serverChannelOption(
+                    .tcpOption(.tcp_nodelay),
+                    value: SocketOptionValue(configuration.socketTcpNoDelay ? 1 : 0)
+                )
+                .childChannelOption(
+                    .socketOption(.so_reuseaddr),
+                    value: SocketOptionValue(configuration.socketReuseAddress ? 1 : 0)
+                )
+                .childChannelOption(
+                    .tcpOption(.tcp_nodelay),
+                    value: SocketOptionValue(configuration.socketTcpNoDelay ? 1 : 0)
+                )
+                .childChannelOption(.socketOption(.so_sndbuf), value: configuration.socketSendBufferSize)
+                .childChannelOption(.socketOption(.so_rcvbuf), value: configuration.socketReceiveBufferSize)
+                .serverChannelInitializer { channel in
+                    logger.info("Server is listening on \(resolvedAddress)")
 
                     // bind to selected device, if any
                     if let deviceName = configuration.deviceName,
                         let device = findDevice(with: deviceName, protocol: resolvedAddress.protocol)
                     {
-                        do {
-                            try bindTo(device: device, on: channel)
-                        } catch {
-                            return channel.eventLoop.makeFailedFuture(error)
-                        }
+                        logger.debug("deviceName \(deviceName), device \(device)")
+                        return bindTo(device, on: channel)
                     }
 
                     return channel.eventLoop.makeSucceededVoidFuture()
                 }
-                .childChannelOption(.socketOption(.so_reuseaddr), value: 1)
-                .childChannelInitializer(childChannelInitializer)
-                .bind(to: resolvedAddress)
-        } else {
-            return NIOTSListenerBootstrap(group: self.eventloopGroup)
-                .serverChannelOption(.socketOption(.so_reuseaddr), value: 1)
-                .serverChannelInitializer { channel in
-                    print("parent channel: \(channel)")
-                    if let socketSendBufferSize = configuration.socketSendBufferSize,
-                        let syncOptions = channel.syncOptions
-                    {
-                        do {
-                            try syncOptions.setOption(.socketOption(.so_sndbuf), value: socketSendBufferSize)
-                        } catch {
-                            return channel.eventLoop.makeFailedFuture(error)
-                        }
-                    }
-
-                    if let socketReceiveBuffer = configuration.socketReceiveBufferSize,
-                        let syncOptions = channel.syncOptions
-                    {
-                        do {
-                            try syncOptions.setOption(.socketOption(.so_rcvbuf), value: socketReceiveBuffer)
-                        } catch {
-                            return channel.eventLoop.makeFailedFuture(error)
-                        }
-                    }
-
-                    // bind to selected device, if any
-                    if let deviceName = configuration.deviceName,
-                        let device = findDevice(with: deviceName, protocol: resolvedAddress.protocol)
-                    {
-                        do {
-                            try bindTo(device: device, on: channel)
-                        } catch {
-                            return channel.eventLoop.makeFailedFuture(error)
-                        }
-                    }
-
-                    return channel.eventLoop.makeSucceededVoidFuture()
-                }
-                .childChannelOption(.socketOption(.so_reuseaddr), value: 1)
                 .childChannelInitializer(childChannelInitializer)
                 .bind(to: resolvedAddress)
         }
+
+        #if canImport(Network)
+        func makeNIOTSListenerBootstrap() -> EventLoopFuture<Channel> {
+
+            let tcpOptions = NWProtocolTCP.Options()
+            tcpOptions.connectionTimeout = Int(configuration.connectionTimeout.seconds)
+            tcpOptions.noDelay = configuration.socketTcpNoDelay
+
+            return NIOTSListenerBootstrap(group: self.eventloopGroup)
+                .tcpOptions(tcpOptions)
+                .serverChannelOption(
+                    .socketOption(.so_reuseaddr),
+                    value: SocketOptionValue(configuration.socketReuseAddress ? 1 : 0)
+                )
+                .childChannelOption(
+                    .socketOption(.so_reuseaddr),
+                    value: SocketOptionValue(configuration.socketReuseAddress ? 1 : 0)
+                )
+                .serverChannelInitializer { channel in
+                    logger.info("Server is listening on \(resolvedAddress)")
+
+                    // bind to selected device, if any
+                    if let deviceName = configuration.deviceName,
+                        let device = findDevice(with: deviceName, protocol: resolvedAddress.protocol)
+                    {
+                        logger.debug("deviceName \(deviceName), device \(device)")
+                        return bindTo(device, on: channel)
+                    }
+
+                    return channel.eventLoop.makeSucceededVoidFuture()
+                }
+                .childChannelInitializer(childChannelInitializer)
+                .bind(to: resolvedAddress)
+        }
+        #endif
+
+        #if canImport(Network)
+        if self.isMultiThreadedEventLoop {
+            return makeServerBootstrap()
+        } else {
+            return makeNIOTSListenerBootstrap()
+        }
+        #else
+        return makeServerBootstrap()
+        #endif
+
     }
 }
 
 #if !canImport(Darwin) || swift(>=5.10)
 extension WebSocketServer {
-    //    @available(macOS 13, iOS 16, watchOS 9, tvOS 16, visionOS 1.0, *)
-    //    public func listen(
-    //        to host: String,
-    //        port: Int,
-    //        configuration: LCLWebSocket.Configuration
-    //    ) throws -> EventLoopFuture<Void> {
-    //        let addr = try SocketAddress(ipAddress: host, port: port)
-    //        return self.listen(to: addr, configuration: configuration)
-    //    }
 
     /// Let the WebSocket server bind and listen to the given address, using the provided configuration.
     ///
@@ -348,34 +346,26 @@ extension WebSocketServer {
     ///
     /// - Note: this is functionally the same as `listen(to:configuration:)`. But this function relies on infrastructures that
     /// is available only on Swift >= 5.10
-    @available(macOS 13, iOS 16, watchOS 9, tvOS 16, visionOS 1.0, *)
+    @available(macOS 13, iOS 16, watchOS 9, tvOS 16, *)
     public func typedListen(
         to address: SocketAddress,
         configuration: LCLWebSocket.Configuration
     ) -> EventLoopFuture<Void> {
         self.makeBootstrapAndBind(with: configuration, resolvedAddress: address) { channel in
-            // enable tls if configuration is provided
             logger.debug("child channel: \(channel)")
-            if let tlsConfiguration = configuration.tlsConfiguration {
-                guard let sslContext = try? NIOSSLContext(configuration: tlsConfiguration) else {
-                    return channel.eventLoop.makeFailedFuture(LCLWebSocketError.tlsInitializationFailed)
-                }
-                let sslServerHandler = NIOSSLServerHandler(context: sslContext)
-                do {
-                    try channel.pipeline.syncOperations.addHandler(sslServerHandler)
-                } catch {
-                    return channel.eventLoop.makeFailedFuture(error)
-                }
+            do {
+                try self.initializeChildChannel(using: configuration, on: channel)
+            } catch {
+                return channel.eventLoop.makeFailedFuture(error)
             }
 
             return self.configureTypedWebSocketServerUpgrade(on: channel, configuration: configuration)
-        }
-        .flatMap { channel in
+        }.flatMap { channel in
             channel.closeFuture
         }
     }
 
-    @available(macOS 13, iOS 16, watchOS 9, tvOS 16, visionOS 1.0, *)
+    @available(macOS 13, iOS 16, watchOS 9, tvOS 16, *)
     private func configureTypedWebSocketServerUpgrade(
         on channel: Channel,
         configuration: LCLWebSocket.Configuration
@@ -426,7 +416,6 @@ extension WebSocketServer {
                     ),
                     WebSocketHandler(websocket: websocket),
                 ])
-                print(channel.pipeline.debugDescription, channel)
                 return channel.eventLoop.makeSucceededFuture(UpgradeResult.websocket)
             } catch {
                 return channel.eventLoop.makeFailedFuture(error)
@@ -520,9 +509,9 @@ extension WebSocketServer {
             case (.end, .ok):
                 context.fireChannelRead(data)
             case (.end, .invalidMethod):
-                let resposneHead = makeResponse(with: .methodNotAllowed)
-                context.channel.write(self.wrapOutboundOut(.head(resposneHead)), promise: nil)
-                context.channel.writeAndFlush(self.wrapOutboundOut(.end(nil)), promise: nil)
+                let responseHead = makeResponse(with: .methodNotAllowed)
+                context.channel.write(HTTPServerResponsePart.head(responseHead), promise: nil)
+                context.channel.writeAndFlush(HTTPServerResponsePart.end(nil), promise: nil)
                 context.fireErrorCaught(LCLWebSocketError.methodNotAllowed)
                 context.close(mode: .all, promise: nil)
             }
@@ -576,8 +565,8 @@ extension WebSocketServer {
                 responseHead = makeResponse(with: .internalServerError)
             }
             logger.debug("closing channel due to error \(error). response head \(responseHead)")
-            context.channel.write(self.wrapOutboundOut(.head(responseHead)), promise: nil)
-            context.channel.writeAndFlush(self.wrapOutboundOut(.end(nil)), promise: nil)
+            context.channel.write(HTTPServerResponsePart.head(responseHead), promise: nil)
+            context.channel.writeAndFlush(HTTPServerResponsePart.end(nil), promise: nil)
             context.close(mode: .all, promise: nil)
         }
     }

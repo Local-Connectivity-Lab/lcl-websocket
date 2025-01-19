@@ -15,6 +15,12 @@ import NIOCore
 import NIOHTTP1
 import NIOSSL
 
+#if (os(Linux) || os(Android)) && !canImport(Musl)
+public typealias SocketOptionValue = Int
+#else
+public typealias SocketOptionValue = CInt
+#endif
+
 extension LCLWebSocket {
     /// Collection of configuration options that allow users to configure the behavior of the WebSocket connection.
     ///
@@ -75,6 +81,9 @@ extension LCLWebSocket {
 
         /// The network device name on the system to route the traffic to.
         ///
+        /// If the device associated with the given `deviceName` is not found, then the WebSocket will
+        /// be bound to the default interface according to the operating system's choice.
+        ///
         /// - Note: You might need root privileges to use this feature.
         var deviceName: String?
 
@@ -83,10 +92,24 @@ extension LCLWebSocket {
         var autoPingConfiguration: AutoPingConfiguration
 
         /// Socket send buffer size in bytes.
-        var socketSendBufferSize: Int32?
+        ///
+        /// This option will not be applied if `NIOTSEventLoopGroup` is used.
+        var socketSendBufferSize: SocketOptionValue
 
         /// Socket receive buffer size in bytes.
-        var socketReceiveBufferSize: Int32?
+        ///
+        /// This option will not be applied if `NIOTSEventLoopGroup` is used.
+        var socketReceiveBufferSize: SocketOptionValue
+
+        /// Indicate that the underlying socket should reuse address or not.
+        ///
+        /// - Note: see more in `man socket(7)`.
+        var socketReuseAddress: Bool
+
+        /// Indicate that the socket should send the segments as soon as possible. If set, the Nagle algorithm is disabled.
+        ///
+        /// - Note: see more in `man socket(7)`
+        var socketTcpNoDelay: Bool
 
         /// Strategy for handling leftover bytes after upgrade.
         ///
@@ -109,8 +132,10 @@ extension LCLWebSocket {
             ),
             leftoverBytesStrategy: RemoveAfterUpgradeStrategy = .dropBytes,
             deviceName: String? = nil,
-            socketSendBufferSize: Int32? = nil,
-            socketReceiveBufferSize: Int32? = nil
+            socketSendBufferSize: SocketOptionValue = 16384,
+            socketReceiveBufferSize: SocketOptionValue = 131072,
+            socketReuseAddress: Bool = false,
+            socketTcpNoDelay: Bool = true
         ) {
             self.tlsConfiguration = tlsConfiguration
             self.maxFrameSize = maxFrameSize
@@ -125,6 +150,8 @@ extension LCLWebSocket {
             self.socketSendBufferSize = socketSendBufferSize
             self.socketReceiveBufferSize = socketReceiveBufferSize
             self.leftoverBytesStrategy = leftoverBytesStrategy
+            self.socketReuseAddress = socketReuseAddress
+            self.socketTcpNoDelay = socketTcpNoDelay
         }
     }
 }
