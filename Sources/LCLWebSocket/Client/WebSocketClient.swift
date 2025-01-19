@@ -341,36 +341,40 @@ extension WebSocketClient {
     ) -> ChannelInitializer {
         @Sendable
         func makeChannelInitializer(_ channel: Channel) -> EventLoopFuture<Void> {
+            let promise = channel.eventLoop.makePromise(of: Void.self)
             if let deviceName = configuration.deviceName,
                 let device = findDevice(with: deviceName, protocol: resolvedAddress.protocol)
             {
                 // bind to selected device, if any
-                return bindTo(device: device, on: channel).flatMap { () -> EventLoopFuture<Void> in
-                    if scheme.enableTLS {
-                        // enale TLS
-                        let tlsConfig = configuration.tlsConfiguration ?? scheme.defaultTLSConfig!
-                        guard let sslContext = try? NIOSSLContext(configuration: tlsConfig) else {
-                            return channel.eventLoop.makeFailedFuture(LCLWebSocketError.tlsInitializationFailed)
-                        }
+                bindTo(device: device, on: channel).cascadeFailure(to: promise)
+            }
+            
+            if scheme.enableTLS {
+                // enale TLS
+                let tlsConfig = configuration.tlsConfiguration ?? scheme.defaultTLSConfig!
+                guard let sslContext = try? NIOSSLContext(configuration: tlsConfig) else {
+                    promise.fail(LCLWebSocketError.tlsInitializationFailed)
+                    return promise.futureResult
+                }
 
-                        do {
-                            let sslClientHandler = try NIOSSLClientHandler(context: sslContext, serverHostname: host)
-                            try channel.pipeline.syncOperations.addHandlers(sslClientHandler)
-                        } catch let error as NIOSSLExtraError where error == .invalidSNIHostname {
-                            do {
-                                let sslClientHandler = try NIOSSLClientHandler(context: sslContext, serverHostname: nil)
-                                try channel.pipeline.syncOperations.addHandlers(sslClientHandler)
-                            } catch {
-                                return channel.eventLoop.makeFailedFuture(error)
-                            }
-                        } catch {
-                            return channel.eventLoop.makeFailedFuture(error)
-                        }
+                do {
+                    let sslClientHandler = try NIOSSLClientHandler(context: sslContext, serverHostname: host)
+                    try channel.pipeline.syncOperations.addHandlers(sslClientHandler)
+                } catch let error as NIOSSLExtraError where error == .invalidSNIHostname {
+                    do {
+                        let sslClientHandler = try NIOSSLClientHandler(context: sslContext, serverHostname: nil)
+                        try channel.pipeline.syncOperations.addHandlers(sslClientHandler)
+                    } catch {
+                        promise.fail(error)
+                        return promise.futureResult
                     }
-                    return channel.eventLoop.makeSucceededVoidFuture()
+                } catch {
+                    promise.fail(error)
+                    return promise.futureResult
                 }
             }
-            return channel.eventLoop.makeSucceededVoidFuture()
+            promise.succeed()
+            return promise.futureResult
         }
 
         return makeChannelInitializer

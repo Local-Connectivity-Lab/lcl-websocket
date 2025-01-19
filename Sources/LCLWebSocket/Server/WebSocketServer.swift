@@ -276,6 +276,7 @@ extension WebSocketServer {
                     if let deviceName = configuration.deviceName,
                         let device = findDevice(with: deviceName, protocol: resolvedAddress.protocol)
                     {
+                        logger.debug("deviceName \(deviceName), device \(device)")
                         return bindTo(device: device, on: channel)
                     }
 

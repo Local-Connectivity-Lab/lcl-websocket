@@ -21,6 +21,7 @@ final class WebSocketHandler: ChannelInboundHandler {
         self.websocket = websocket
     }
 
+    #if DEBUG
     func channelInactive(context: ChannelHandlerContext) {
         logger.debug("WebSocketHandler channelInactive")
     }
@@ -28,6 +29,7 @@ final class WebSocketHandler: ChannelInboundHandler {
     func channelUnregistered(context: ChannelHandlerContext) {
         logger.debug("WebSocketHandler channelUnregistered")
     }
+    #endif // DEBUG
 
     func channelRead(context: ChannelHandlerContext, data: NIOAny) {
         let frame = self.unwrapInboundIn(data)

@@ -81,6 +81,9 @@ extension LCLWebSocket {
 
         /// The network device name on the system to route the traffic to.
         ///
+        /// If the device associated with the given `deviceName` is not found, then the WebSocket will
+        /// be bound to the default interface according to the operating system's choice.
+        ///
         /// - Note: You might need root privileges to use this feature.
         var deviceName: String?
 
