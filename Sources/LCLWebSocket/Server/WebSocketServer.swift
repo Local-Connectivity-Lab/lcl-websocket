@@ -277,7 +277,7 @@ extension WebSocketServer {
                         let device = findDevice(with: deviceName, protocol: resolvedAddress.protocol)
                     {
                         logger.debug("deviceName \(deviceName), device \(device)")
-                        return bindTo(device: device, on: channel)
+                        return bindTo(device, on: channel)
                     }
 
                     return channel.eventLoop.makeSucceededVoidFuture()
@@ -310,7 +310,8 @@ extension WebSocketServer {
                     if let deviceName = configuration.deviceName,
                         let device = findDevice(with: deviceName, protocol: resolvedAddress.protocol)
                     {
-                        return bindTo(device: device, on: channel)
+                        logger.debug("deviceName \(deviceName), device \(device)")
+                        return bindTo(device, on: channel)
                     }
 
                     return channel.eventLoop.makeSucceededVoidFuture()

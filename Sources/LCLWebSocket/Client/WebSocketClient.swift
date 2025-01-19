@@ -368,7 +368,8 @@ extension WebSocketClient {
                 let device = findDevice(with: deviceName, protocol: resolvedAddress.protocol)
             {
                 // bind to selected device, if any
-                return bindTo(device: device, on: channel)
+                logger.debug("deviceName \(deviceName), device \(device)")
+                return bindTo(device, on: channel)
             }
 
             return channel.eventLoop.makeSucceededVoidFuture()

@@ -20,7 +20,7 @@ typealias ChannelInitializer = @Sendable (Channel) -> EventLoopFuture<Void>
 /// - Parameters:
 ///     - device: the device to bind to
 ///     - on: the channel that will be bound to the device
-internal func bindTo(device: NIONetworkDevice, on channel: Channel) -> EventLoopFuture<Void> {
+internal func bindTo(_ device: NIONetworkDevice, on channel: Channel) -> EventLoopFuture<Void> {
     #if canImport(Darwin)
     switch device.address {
     case .v4:
