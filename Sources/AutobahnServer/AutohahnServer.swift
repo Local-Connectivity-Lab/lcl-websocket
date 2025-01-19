@@ -37,7 +37,7 @@ struct AutohahnServer {
             let portIndex = portCmdIndex + 1
             port = Int(args[portIndex]) ?? port
         }
-        
+
         let elg = MultiThreadedEventLoopGroup(numberOfThreads: 4)
         var server = LCLWebSocket.server(on: elg)
 

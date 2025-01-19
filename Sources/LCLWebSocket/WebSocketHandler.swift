@@ -20,11 +20,11 @@ final class WebSocketHandler: ChannelInboundHandler {
     init(websocket: WebSocket) {
         self.websocket = websocket
     }
-    
+
     func channelInactive(context: ChannelHandlerContext) {
         logger.debug("WebSocketHandler channelInactive")
     }
-    
+
     func channelUnregistered(context: ChannelHandlerContext) {
         logger.debug("WebSocketHandler channelUnregistered")
     }

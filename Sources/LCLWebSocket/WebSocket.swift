@@ -110,7 +110,7 @@ public final class WebSocket: Sendable {
     func onError(_ callback: (@Sendable (Error) -> Void)?) {
         self._onError.value = callback
     }
-    
+
     /// Send the provided buffer, opcode, fin to the remote WebSocket peer.
     ///
     /// - Parameters:
@@ -167,9 +167,8 @@ public final class WebSocket: Sendable {
         return promise.futureResult
     }
 
-    
     /// Send the close frame to the WebSocket peer to initiate the closing handshake.
-    /// 
+    ///
     /// - Parameters:
     ///   - code: the `WebSocketErrorCode` describe the reason for the closure.
     ///   - reason: the textual description of the reason why the WebSocket connection is closed.
@@ -233,7 +232,6 @@ public final class WebSocket: Sendable {
         return promise.futureResult
     }
 
-    
     /// Send the ping frame to the remote peer.
     ///
     /// Calling this function if the WebSocket connection is not active will result in a failure in the given promise.
@@ -425,7 +423,7 @@ public final class WebSocket: Sendable {
             return nil
         }
     }
-    
+
     private func closeChannel() {
         if self.channel.isActive && self.channel.isWritable {
             logger.debug("Closing underying tcp connection.")
@@ -511,12 +509,12 @@ extension WebSocket {
 }
 
 extension WebSocket {
-    
+
     /// The type of the WebSocket instance.
     public enum WebSocketType: Sendable, Equatable {
         /// WebSocket client
         case client
-        
+
         /// WebSocket server
         case server
     }
@@ -530,13 +528,13 @@ extension WebSocket {
 }
 
 extension WebSocket {
-    
+
     /// A collection of information that the WebSocket uses to make the connection
     public struct ConnectionInfo: Sendable {
-        
+
         /// The URL that the WebSocket client connects to
         let url: URLComponents
-        
+
         /// The protocol, "ws" or "wss", that the WebSocket follows
         let `protocol`: String?
         // TODO: extension

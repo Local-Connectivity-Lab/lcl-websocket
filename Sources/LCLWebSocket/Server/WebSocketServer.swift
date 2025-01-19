@@ -251,10 +251,22 @@ extension WebSocketServer {
 
         func makeServerBootstrap() -> EventLoopFuture<Channel> {
             ServerBootstrap(group: self.eventloopGroup)
-                .serverChannelOption(.socketOption(.so_reuseaddr), value: SocketOptionValue(configuration.socketReuseAddress ? 1 : 0))
-                .serverChannelOption(.tcpOption(.tcp_nodelay), value: SocketOptionValue(configuration.socketTcpNoDelay ? 1 : 0))
-                .childChannelOption(.socketOption(.so_reuseaddr), value: SocketOptionValue(configuration.socketReuseAddress ? 1 : 0))
-                .childChannelOption(.tcpOption(.tcp_nodelay), value: SocketOptionValue(configuration.socketTcpNoDelay ? 1 : 0))
+                .serverChannelOption(
+                    .socketOption(.so_reuseaddr),
+                    value: SocketOptionValue(configuration.socketReuseAddress ? 1 : 0)
+                )
+                .serverChannelOption(
+                    .tcpOption(.tcp_nodelay),
+                    value: SocketOptionValue(configuration.socketTcpNoDelay ? 1 : 0)
+                )
+                .childChannelOption(
+                    .socketOption(.so_reuseaddr),
+                    value: SocketOptionValue(configuration.socketReuseAddress ? 1 : 0)
+                )
+                .childChannelOption(
+                    .tcpOption(.tcp_nodelay),
+                    value: SocketOptionValue(configuration.socketTcpNoDelay ? 1 : 0)
+                )
                 .childChannelOption(.socketOption(.so_sndbuf), value: configuration.socketSendBufferSize)
                 .childChannelOption(.socketOption(.so_rcvbuf), value: configuration.socketReceiveBufferSize)
                 .serverChannelInitializer { channel in
@@ -282,8 +294,14 @@ extension WebSocketServer {
 
             return NIOTSListenerBootstrap(group: self.eventloopGroup)
                 .tcpOptions(tcpOptions)
-                .serverChannelOption(.socketOption(.so_reuseaddr), value: SocketOptionValue(configuration.socketReuseAddress ? 1 : 0))
-                .childChannelOption(.socketOption(.so_reuseaddr), value: SocketOptionValue(configuration.socketReuseAddress ? 1 : 0))
+                .serverChannelOption(
+                    .socketOption(.so_reuseaddr),
+                    value: SocketOptionValue(configuration.socketReuseAddress ? 1 : 0)
+                )
+                .childChannelOption(
+                    .socketOption(.so_reuseaddr),
+                    value: SocketOptionValue(configuration.socketReuseAddress ? 1 : 0)
+                )
                 .serverChannelInitializer { channel in
                     logger.info("Server is listening on \(resolvedAddress)")
 

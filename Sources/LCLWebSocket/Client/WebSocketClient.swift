@@ -290,8 +290,14 @@ extension WebSocketClient {
 
         func makeClientBootstrap() -> EventLoopFuture<Channel> {
             ClientBootstrap(group: self.eventloopGroup)
-                .channelOption(.socketOption(.so_reuseaddr), value: SocketOptionValue(configuration.socketReuseAddress ? 1 : 0))
-                .channelOption(.tcpOption(.tcp_nodelay), value: SocketOptionValue(configuration.socketTcpNoDelay ? 1 : 0))
+                .channelOption(
+                    .socketOption(.so_reuseaddr),
+                    value: SocketOptionValue(configuration.socketReuseAddress ? 1 : 0)
+                )
+                .channelOption(
+                    .tcpOption(.tcp_nodelay),
+                    value: SocketOptionValue(configuration.socketTcpNoDelay ? 1 : 0)
+                )
                 .channelOption(.socketOption(.so_sndbuf), value: configuration.socketSendBufferSize)
                 .channelOption(.socketOption(.so_rcvbuf), value: configuration.socketReceiveBufferSize)
                 .connectTimeout(configuration.connectionTimeout)
@@ -307,7 +313,10 @@ extension WebSocketClient {
 
             return NIOTSConnectionBootstrap(group: self.eventloopGroup)
                 .tcpOptions(tcpOptions)
-                .channelOption(.socketOption(.so_reuseaddr), value: SocketOptionValue(configuration.socketReuseAddress ? 1 : 0))
+                .channelOption(
+                    .socketOption(.so_reuseaddr),
+                    value: SocketOptionValue(configuration.socketReuseAddress ? 1 : 0)
+                )
                 .channelInitializer(channelInitializer)
                 .connect(to: resolvedAddress)
         }
@@ -333,7 +342,8 @@ extension WebSocketClient {
         @Sendable
         func makeChannelInitializer(_ channel: Channel) -> EventLoopFuture<Void> {
             if let deviceName = configuration.deviceName,
-                let device = findDevice(with: deviceName, protocol: resolvedAddress.protocol) {
+                let device = findDevice(with: deviceName, protocol: resolvedAddress.protocol)
+            {
                 // bind to selected device, if any
                 return bindTo(device: device, on: channel).flatMap { () -> EventLoopFuture<Void> in
                     if scheme.enableTLS {
