@@ -32,29 +32,29 @@ extension LCLWebSocket {
         ///
         /// Set this to enable WSS (WebSocket Secure) connections.
         /// - Note: Required for `wss://` URLs. By default, this is `nil`.
-        let tlsConfiguration: TLSConfiguration?
+        public var tlsConfiguration: TLSConfiguration?
 
         /// Maximum size of a single WebSocket frame in bytes. Default is 1 << 14 (16KB).
         ///
         /// - Important: Frames larger than this will be rejected
-        var maxFrameSize: Int
+        public var maxFrameSize: Int
 
         /// Minimum size required for non-final fragments. Default is 0 (no minimum).
-        var minNonFinalFragmentSize: Int
+        public var minNonFinalFragmentSize: Int
 
         /// Maximum number of frames that can be accumulated. Default is Int.max.
         ///
         /// Limits memory usage when receiving fragmented messages.
-        var maxAccumulatedFrameCount: Int
+        public var maxAccumulatedFrameCount: Int
 
         /// Maximum total size of accumulated frames in bytes. Default is Int.max.
-        var maxAccumulatedFrameSize: Int
+        public var maxAccumulatedFrameSize: Int
 
         /// Low water mark for write buffer in bytes.
         ///
         /// When buffer size drops below this, writes resume.
         /// - Note: Must be >= 1 and <= writeBufferWaterMarkHigh
-        var writeBufferWaterMarkLow: Int {
+        public var writeBufferWaterMarkLow: Int {
             willSet {
                 precondition(
                     newValue >= 1 && newValue <= writeBufferWaterMarkHigh,
@@ -67,7 +67,7 @@ extension LCLWebSocket {
         ///
         /// When buffer exceeds this, writes pause.
         /// - Note: Must be >= writeBufferWaterMarkLow
-        var writeBufferWaterMarkHigh: Int {
+        public var writeBufferWaterMarkHigh: Int {
             willSet {
                 precondition(
                     newValue >= writeBufferWaterMarkLow,
@@ -77,7 +77,7 @@ extension LCLWebSocket {
         }
 
         /// Maximum time to wait for connection establishment.
-        var connectionTimeout: TimeAmount
+        public var connectionTimeout: TimeAmount
 
         /// The network device name on the system to route the traffic to.
         ///
@@ -85,31 +85,31 @@ extension LCLWebSocket {
         /// be bound to the default interface according to the operating system's choice.
         ///
         /// - Note: You might need root privileges to use this feature.
-        var deviceName: String?
+        public var deviceName: String?
 
         /// Auto-ping configuration to keep the WebSocket connection alive. Default is enabled.
         /// - seealso: `AutoPingConfiguration`
-        var autoPingConfiguration: AutoPingConfiguration
+        public var autoPingConfiguration: AutoPingConfiguration
 
         /// Socket send buffer size in bytes.
         ///
         /// This option will not be applied if `NIOTSEventLoopGroup` is used.
-        var socketSendBufferSize: SocketOptionValue
+        public var socketSendBufferSize: SocketOptionValue
 
         /// Socket receive buffer size in bytes.
         ///
         /// This option will not be applied if `NIOTSEventLoopGroup` is used.
-        var socketReceiveBufferSize: SocketOptionValue
+        public var socketReceiveBufferSize: SocketOptionValue
 
         /// Indicate that the underlying socket should reuse address or not.
         ///
         /// - Note: see more in `man socket(7)`.
-        var socketReuseAddress: Bool
+        public var socketReuseAddress: Bool
 
         /// Indicate that the socket should send the segments as soon as possible. If set, the Nagle algorithm is disabled.
         ///
         /// - Note: see more in `man socket(7)`
-        var socketTcpNoDelay: Bool
+        public var socketTcpNoDelay: Bool
 
         /// Strategy for handling leftover bytes after upgrade.
         ///
