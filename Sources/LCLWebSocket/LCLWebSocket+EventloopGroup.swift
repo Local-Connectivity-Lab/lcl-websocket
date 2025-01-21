@@ -19,7 +19,7 @@ import NIOWebSocket
 import Network
 #endif
 
-#if os(macOS) || os(iOS) || os(tvOS) || os(watchOS) || os(visionOS)
+#if os(macOS) || os(iOS) || os(tvOS) || os(watchOS)
 import NIOTransportServices
 #endif
 
@@ -28,7 +28,7 @@ extension LCLWebSocket {
     /// The default `EventLoopGroup` for  the `LCLWebSocket`.
     public static var defaultEventloopGroup: EventLoopGroup {
         #if canImport(Network)
-        if #available(macOS 10.14, iOS 12.0, tvOS 12.0, watchOS 6.0, visionOS 1.0, *) {
+        if #available(macOS 10.14, iOS 12.0, tvOS 12.0, watchOS 6.0, *) {
             NIOTSEventLoopGroup.singleton
         } else {
             MultiThreadedEventLoopGroup.singleton
@@ -44,7 +44,7 @@ extension LCLWebSocket {
     ///     - size: the number of event loop in this `EventLoopGroup`
     public static func makeEventLoopGroup(size: Int) -> EventLoopGroup {
         #if canImport(Network)
-        if #available(macOS 10.14, iOS 12.0, tvOS 12.0, watchOS 6.0, visionOS 1.0, *) {
+        if #available(macOS 10.14, iOS 12.0, tvOS 12.0, watchOS 6.0, *) {
             NIOTSEventLoopGroup(loopCount: size)
         } else {
             MultiThreadedEventLoopGroup(numberOfThreads: size)

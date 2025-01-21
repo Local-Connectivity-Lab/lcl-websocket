@@ -13,20 +13,22 @@
 import Foundation
 import NIOCore
 
+typealias ChannelInitializer = @Sendable (Channel) -> EventLoopFuture<Void>
+
 /// Bind the connection to the given `device` using the given `Channel`.
 ///
 /// - Parameters:
 ///     - device: the device to bind to
 ///     - on: the channel that will be bound to the device
-internal func bindTo(device: NIONetworkDevice, on channel: Channel) throws {
+internal func bindTo(_ device: NIONetworkDevice, on channel: Channel) -> EventLoopFuture<Void> {
     #if canImport(Darwin)
     switch device.address {
     case .v4:
-        try channel.syncOptions?.setOption(.ipOption(.ip_bound_if), value: CInt(device.interfaceIndex))
+        return channel.setOption(.ipOption(.ip_bound_if), value: CInt(device.interfaceIndex))
     case .v6:
-        try channel.syncOptions?.setOption(.ipv6Option(.ipv6_bound_if), value: CInt(device.interfaceIndex))
+        return channel.setOption(.ipv6Option(.ipv6_bound_if), value: CInt(device.interfaceIndex))
     default:
-        throw LCLWebSocketError.invalidDevice
+        return channel.eventLoop.makeFailedFuture(LCLWebSocketError.invalidDevice)
     }
     #elseif canImport(Glibc) || canImport(Musl)
     return (channel as! SocketOptionProvider).setBindToDevice(device.name)

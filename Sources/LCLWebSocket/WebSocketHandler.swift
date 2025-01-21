@@ -21,6 +21,16 @@ final class WebSocketHandler: ChannelInboundHandler {
         self.websocket = websocket
     }
 
+    #if DEBUG
+    func channelInactive(context: ChannelHandlerContext) {
+        logger.debug("WebSocketHandler channelInactive")
+    }
+
+    func channelUnregistered(context: ChannelHandlerContext) {
+        logger.debug("WebSocketHandler channelUnregistered")
+    }
+    #endif  // DEBUG
+
     func channelRead(context: ChannelHandlerContext, data: NIOAny) {
         let frame = self.unwrapInboundIn(data)
         self.websocket.handleFrame(frame)
@@ -29,12 +39,12 @@ final class WebSocketHandler: ChannelInboundHandler {
     func errorCaught(context: ChannelHandlerContext, error: any Error) {
         logger.debug("WebSocketHandler caught error: \(error)")
         if let err = error as? NIOWebSocketError {
-            self.websocket.close(code: WebSocketErrorCode(err), promise: nil)
-        } else {
-            self.websocket.close(code: .protocolError, promise: nil)
+            self.websocket.close(
+                code: WebSocketErrorCode(err),
+                promise: nil
+            )
         }
-
-        context.fireErrorCaught(error)
+        context.close(mode: .all, promise: nil)
     }
 }
 

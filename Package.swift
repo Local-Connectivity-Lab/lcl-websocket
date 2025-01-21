@@ -29,6 +29,7 @@ let package = Package(
                 .product(name: "NIOConcurrencyHelpers", package: "swift-nio"),
                 .product(name: "NIOWebSocket", package: "swift-nio"),
                 .product(name: "NIOHTTP1", package: "swift-nio"),
+                .product(name: "NIOFoundationCompat", package: "swift-nio"),
                 .product(name: "NIOSSL", package: "swift-nio-ssl"),
                 .product(
                     name: "NIOTransportServices",
@@ -48,6 +49,14 @@ let package = Package(
         ),
         .testTarget(
             name: "LCLWebSocketTests",
+            dependencies: ["LCLWebSocket"]
+        ),
+        .executableTarget(
+            name: "AutobahnClient",
+            dependencies: ["LCLWebSocket"]
+        ),
+        .executableTarget(
+            name: "AutobahnServer",
             dependencies: ["LCLWebSocket"]
         ),
         .executableTarget(name: "Client", dependencies: ["LCLWebSocket"]),
