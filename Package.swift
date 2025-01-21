@@ -37,6 +37,13 @@ let package = Package(
                 ),
                 .product(name: "Logging", package: "swift-log"),
                 .product(name: "Atomics", package: "swift-atomics"),
+                "CLCLWebSocketZlib",
+            ]
+        ),
+        .target(
+            name: "CLCLWebSocketZlib",
+            linkerSettings: [
+                .linkedFramework("z")
             ]
         ),
         .testTarget(
