@@ -194,14 +194,9 @@ public struct WebSocketServer: Sendable, LCLWebSocketListenable {
                         high: configuration.writeBufferWaterMarkHigh
                     )
                 )
-                try channel.pipeline.syncOperations.addHandlers([
-                    NIOWebSocketFrameAggregator(
-                        minNonFinalFragmentSize: configuration.minNonFinalFragmentSize,
-                        maxAccumulatedFrameCount: configuration.maxAccumulatedFrameCount,
-                        maxAccumulatedFrameSize: configuration.maxAccumulatedFrameSize
-                    ),
-                    WebSocketHandler(websocket: websocket),
-                ])
+                try channel.pipeline.syncOperations.addHandler(
+                    WebSocketHandler(websocket: websocket, configuration: configuration)
+                )
                 self._onOpen?(websocket)
                 return channel.eventLoop.makeSucceededVoidFuture()
             } catch {
@@ -408,14 +403,9 @@ extension WebSocketServer {
                         high: configuration.writeBufferWaterMarkHigh
                     )
                 )
-                try channel.pipeline.syncOperations.addHandlers([
-                    NIOWebSocketFrameAggregator(
-                        minNonFinalFragmentSize: configuration.minNonFinalFragmentSize,
-                        maxAccumulatedFrameCount: configuration.maxAccumulatedFrameCount,
-                        maxAccumulatedFrameSize: configuration.maxAccumulatedFrameSize
-                    ),
-                    WebSocketHandler(websocket: websocket),
-                ])
+                try channel.pipeline.syncOperations.addHandler(
+                    WebSocketHandler(websocket: websocket, configuration: configuration)
+                )
                 return channel.eventLoop.makeSucceededFuture(UpgradeResult.websocket)
             } catch {
                 return channel.eventLoop.makeFailedFuture(error)
