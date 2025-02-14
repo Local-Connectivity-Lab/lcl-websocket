@@ -48,22 +48,22 @@ public enum LCLWebSocketError: Error {
 
     /// HTTP method is not allowed during the upgrade request.
     case methodNotAllowed
-    
+
     /// Received a new fragment frame without finishing the previous fragment sequence.
     case receivedNewFrameWithoutFinishingPreviousOne
-    
+
     /// The size of the non-final fragment is too small.
     case nonFinalFragmentSizeIsTooSmall
-    
+
     /// There are too many fragment frames
     case tooManyFrameFragments
-    
+
     /// The buffered frame sizes is too large.
     case accumulatedFrameSizeIsTooLarge
-    
+
     /// Received a continuation frame without a previous fragment frame.
     case receivedContinuationFrameWithoutPreviousFragmentFrame
-    
+
     /// Invalid UTF-8 string
     case invalidUTF8String
 }

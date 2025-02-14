@@ -45,7 +45,7 @@ final class WebSocketHandler: ChannelInboundHandler {
         if let maskKey = frame.maskKey {
             frame.data.webSocketUnmask(maskKey)
         }
-        
+
         do {
             switch frame.opcode {
             case .continuation:
@@ -56,12 +56,12 @@ final class WebSocketHandler: ChannelInboundHandler {
 
                 // buffer the frame
                 try self.bufferFrame(frame)
-                
+
                 guard frame.fin else {
                     // continuation frame
                     break
                 }
-                
+
                 // final frame is received
                 // combine frame
                 // clear buffer
@@ -108,54 +108,65 @@ final class WebSocketHandler: ChannelInboundHandler {
         }
         context.close(mode: .all, promise: nil)
     }
-    
+
     private func bufferFrame(_ frame: WebSocketFrame) throws {
         guard self.firstFrame == nil || frame.opcode == .continuation else {
             throw LCLWebSocketError.receivedNewFrameWithoutFinishingPreviousOne
         }
-        
+
         guard frame.fin || frame.length >= self.configuration.minNonFinalFragmentSize else {
             throw LCLWebSocketError.nonFinalFragmentSizeIsTooSmall
         }
-        
+
         guard self.totalBufferedFrameCount < self.configuration.maxFrameSize else {
             throw LCLWebSocketError.tooManyFrameFragments
         }
-        
+
         guard frame.fin || (self.totalBufferedFrameCount + 1) < self.configuration.maxAccumulatedFrameCount else {
             throw LCLWebSocketError.tooManyFrameFragments
         }
-        
+
         if self.firstFrame == nil {
             self.firstFrame = frame
         }
         self.totalBufferedFrameCount += 1
         var frame = frame
         self.bufferedFrameData.writeBuffer(&frame.data)
-        
+
         guard self.bufferedFrameData.readableBytes <= self.configuration.maxAccumulatedFrameSize else {
             throw LCLWebSocketError.accumulatedFrameSizeIsTooLarge
         }
     }
-    
+
     private func validateUFT8Encoding(of data: ByteBuffer) throws {
         if data.readableBytes == 0 {
             return
         }
-        
+
         if #available(macOS 15, iOS 18, tvOS 18, watchOS 11, *) {
             _ = try self.bufferedFrameData.getUTF8ValidatedString(at: data.readableBytes, length: data.readableBytes)
         } else {
-            guard let bytes = self.bufferedFrameData.getData(at: data.readerIndex, length: data.readableBytes), String(data: bytes, encoding: .utf8) != nil else {
+            guard let bytes = self.bufferedFrameData.getData(at: data.readerIndex, length: data.readableBytes),
+                String(data: bytes, encoding: .utf8) != nil
+            else {
                 throw LCLWebSocketError.invalidUTF8String
             }
         }
     }
-    
+
     private func combineFrames(firstFrame: WebSocketFrame, allocator: ByteBufferAllocator) -> WebSocketFrame {
-        return WebSocketFrame(fin: firstFrame.fin, rsv1: firstFrame.rsv1, rsv2: firstFrame.rsv2, rsv3: firstFrame.rsv3, opcode: firstFrame.opcode, maskKey: firstFrame.maskKey, data: self.bufferedFrameData, extensionData: firstFrame.extensionData)
+        WebSocketFrame(
+            fin: firstFrame.fin,
+            rsv1: firstFrame.rsv1,
+            rsv2: firstFrame.rsv2,
+            rsv3: firstFrame.rsv3,
+            opcode: firstFrame.opcode,
+            maskKey: firstFrame.maskKey,
+            data: self.bufferedFrameData,
+            extensionData: firstFrame.extensionData
+        )
     }
-    
+
     private func clearBufferedFrames() {
         self.firstFrame = nil
         self.bufferedFrameData.clear()
