@@ -48,6 +48,24 @@ public enum LCLWebSocketError: Error {
 
     /// HTTP method is not allowed during the upgrade request.
     case methodNotAllowed
+    
+    /// Received a new fragment frame without finishing the previous fragment sequence.
+    case receivedNewFrameWithoutFinishingPreviousOne
+    
+    /// The size of the non-final fragment is too small.
+    case nonFinalFragmentSizeIsTooSmall
+    
+    /// There are too many fragment frames
+    case tooManyFrameFragments
+    
+    /// The buffered frame sizes is too large.
+    case accumulatedFrameSizeIsTooLarge
+    
+    /// Received a continuation frame without a previous fragment frame.
+    case receivedContinuationFrameWithoutPreviousFragmentFrame
+    
+    /// Invalid UTF-8 string
+    case invalidUTF8String
 }
 
 extension LCLWebSocketError: CustomStringConvertible {
@@ -75,6 +93,18 @@ extension LCLWebSocketError: CustomStringConvertible {
             return "Unknown opcode \(code)"
         case .methodNotAllowed:
             return "HTTP Method not allowed"
+        case .receivedNewFrameWithoutFinishingPreviousOne:
+            return "Received new frame without finishing previous one"
+        case .nonFinalFragmentSizeIsTooSmall:
+            return "Non-final fragment size is too small"
+        case .tooManyFrameFragments:
+            return "Too many frame fragments"
+        case .accumulatedFrameSizeIsTooLarge:
+            return "Accumulated frame size is too large"
+        case .receivedContinuationFrameWithoutPreviousFragmentFrame:
+            return "Received continuation frame without previous fragment frame"
+        case .invalidUTF8String:
+            return "Invalid UTF-8 string"
         }
     }
 }

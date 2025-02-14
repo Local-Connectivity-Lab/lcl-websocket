@@ -203,14 +203,9 @@ public struct WebSocketClient: Sendable, LCLWebSocketListenable {
                         )
                     )
 
-                    try channel.pipeline.syncOperations.addHandlers([
-                        NIOWebSocketFrameAggregator(
-                            minNonFinalFragmentSize: configuration.minNonFinalFragmentSize,
-                            maxAccumulatedFrameCount: configuration.maxAccumulatedFrameCount,
-                            maxAccumulatedFrameSize: configuration.maxAccumulatedFrameSize
-                        ),
-                        WebSocketHandler(websocket: websocket),
-                    ])
+                    try channel.pipeline.syncOperations.addHandlers(
+                        WebSocketHandler(websocket: websocket, configuration: configuration)
+                    )
                     self._onOpen?(websocket)
                     return channel.eventLoop.makeSucceededVoidFuture()
                 } catch {
@@ -547,14 +542,9 @@ extension WebSocketClient {
                         )
                     )
 
-                    try channel.pipeline.syncOperations.addHandlers([
-                        NIOWebSocketFrameAggregator(
-                            minNonFinalFragmentSize: configuration.minNonFinalFragmentSize,
-                            maxAccumulatedFrameCount: configuration.maxAccumulatedFrameCount,
-                            maxAccumulatedFrameSize: configuration.maxAccumulatedFrameSize
-                        ),
-                        WebSocketHandler(websocket: websocket),
-                    ])
+                    try channel.pipeline.syncOperations.addHandler(
+                        WebSocketHandler(websocket: websocket, configuration: configuration)
+                    )
                     self._onOpen?(websocket)
                 } catch {
                     return channel.eventLoop.makeFailedFuture(error)

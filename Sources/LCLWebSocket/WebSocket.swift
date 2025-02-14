@@ -294,9 +294,6 @@ public final class WebSocket: Sendable {
         }
 
         var data = frame.data
-        if let maskKey = frame.maskKey {
-            data.webSocketUnmask(maskKey)
-        }
         let originalDataReaderIdx = data.readerIndex
 
         switch frame.opcode {
@@ -383,7 +380,7 @@ public final class WebSocket: Sendable {
                 preconditionFailure("WebSocket connection is not established.")
             }
         case .continuation:
-            preconditionFailure("continuation frame is filtered by swiftnio")
+            preconditionFailure("continuation frame is filtered by WebSocketHandler")
         case .ping:
             if frame.fin {
                 self._onPing.value?(self, data)
