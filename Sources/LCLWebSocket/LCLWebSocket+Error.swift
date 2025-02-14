@@ -55,7 +55,7 @@ public enum LCLWebSocketError: Error {
     /// The size of the non-final fragment is too small.
     case nonFinalFragmentSizeIsTooSmall
 
-    /// There are too many fragment frames
+    /// There are too many fragment frames.
     case tooManyFrameFragments
 
     /// The buffered frame sizes is too large.
@@ -64,7 +64,7 @@ public enum LCLWebSocketError: Error {
     /// Received a continuation frame without a previous fragment frame.
     case receivedContinuationFrameWithoutPreviousFragmentFrame
 
-    /// Invalid UTF-8 string
+    /// Invalid UTF-8 string.
     case invalidUTF8String
 }
 
