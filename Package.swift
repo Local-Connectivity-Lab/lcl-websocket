@@ -15,16 +15,18 @@ let package = Package(
         )
     ],
     dependencies: [
-        .package(url: "https://github.com/apple/swift-nio.git", from: "2.76.1"),
+        .package(url: "https://github.com/apple/swift-nio.git", from: "2.80.0"),
         .package(url: "https://github.com/apple/swift-nio-transport-services.git", from: "1.23.0"),
         .package(url: "https://github.com/apple/swift-nio-ssl.git", from: "2.28.0"),
         .package(url: "https://github.com/apple/swift-log.git", from: "1.6.2"),
         .package(url: "https://github.com/apple/swift-atomics.git", from: "1.2.0"),
+        .package(url: "https://github.com/adam-fowler/compress-nio.git", from: "1.4.0"),
     ],
     targets: [
         .target(
             name: "LCLWebSocket",
             dependencies: [
+                "CLCLWebSocketZlib",
                 .product(name: "NIO", package: "swift-nio"),
                 .product(name: "NIOConcurrencyHelpers", package: "swift-nio"),
                 .product(name: "NIOWebSocket", package: "swift-nio"),
@@ -38,13 +40,13 @@ let package = Package(
                 ),
                 .product(name: "Logging", package: "swift-log"),
                 .product(name: "Atomics", package: "swift-atomics"),
-                "CLCLWebSocketZlib",
+                .product(name: "CompressNIO", package: "compress-nio"),
             ]
         ),
         .target(
             name: "CLCLWebSocketZlib",
             linkerSettings: [
-                .linkedFramework("z")
+                .linkedLibrary("z")
             ]
         ),
         .testTarget(

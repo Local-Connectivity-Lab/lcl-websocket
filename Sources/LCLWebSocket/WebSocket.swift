@@ -28,7 +28,8 @@ public final class WebSocket: Sendable {
     private let configuration: LCLWebSocket.Configuration
     private let state: NIOLockedValueBox<WebSocketState>
     private let timerTracker: NIOLockedValueBox<TimerTracker>
-    private let connectionInfo: ConnectionInfo?
+    private let connectionInfo: ConnectionInfo
+//    private let extensions: [any WebSocketExtension]
 
     // MARK: callbacks
     private let _onPing: NIOLoopBoundBox<(@Sendable (WebSocket, ByteBuffer) -> Void)?>
@@ -43,7 +44,7 @@ public final class WebSocket: Sendable {
         channel: Channel,
         type: WebSocketType,
         configuration: LCLWebSocket.Configuration,
-        connectionInfo: ConnectionInfo?
+        connectionInfo: ConnectionInfo
     ) {
         self.channel = channel
         self.type = type
@@ -58,6 +59,7 @@ public final class WebSocket: Sendable {
         self._onClosing = .makeEmptyBox(eventLoop: channel.eventLoop)
         self._onClosed = .makeEmptyBox(eventLoop: channel.eventLoop)
         self.connectionInfo = connectionInfo
+//        self.extensions = self.connectionInfo.extensions?.compactMap { $0.makeExtension() }.reversed() ?? []
         if self.configuration.autoPingConfiguration.keepAlive {
             self.scheduleNextPing()
         }
@@ -70,7 +72,7 @@ public final class WebSocket: Sendable {
     /// The WebSocket URL that the client connects to
     /// If this WebSocket is a server, then the url is nil.
     public var url: String? {
-        self.connectionInfo?.url.description
+        self.connectionInfo.url?.description
     }
 
     /// The amount of buffer, in bytes, that is currently buffered, waiting to be sent to the remote peer.
@@ -80,7 +82,7 @@ public final class WebSocket: Sendable {
 
     /// The WebSocket protocol used by this connection. It is either "ws" or "wss"
     public var `protocol`: String? {
-        self.connectionInfo?.protocol
+        self.connectionInfo.protocol
     }
 
     func onPing(_ callback: (@Sendable (WebSocket, ByteBuffer) -> Void)?) {
@@ -132,12 +134,25 @@ public final class WebSocket: Sendable {
 
         switch (self.state.withLockedValue({ $0 }), opcode) {
         case (.open, _), (.closing, .connectionClose):
-            let frame = WebSocketFrame(
+            var frame = WebSocketFrame(
                 fin: fin,
                 opcode: opcode,
                 maskKey: self.makeMaskingKey(),
                 data: buffer
             )
+//            
+//            if opcode == .binary || opcode == .text {
+//                for var ext in self.extensions {
+//                    do {
+//                        frame = try ext.encode(frame: frame, allocator: self.channel.allocator)
+//                    } catch {
+//                        logger.error("websocket extension failed: \(error)")
+//                        promise?.fail(error)
+//                        return
+//                    }
+//                }
+//            }
+            
             logger.debug("sent: \(frame)")
             self.channel.writeAndFlush(frame, promise: promise)
         case (.closed, _), (.closing, _):
@@ -288,15 +303,28 @@ public final class WebSocket: Sendable {
         logger.debug("frame received: \(frame)")
         // TODO: the following applies to websocket without extension negotiated.
         // Note: Extension support will come later
-        if frame.rsv1 || frame.rsv2 || frame.rsv3 {
-            self.closeChannel()
-            return
-        }
+//        if self.extensions.isEmpty && (frame.rsv1 || frame.rsv2 || frame.rsv3) {
+//            self.closeChannel()
+//            return
+//        }
 
+//        var frame = frame
+//        if let maskKey = frame.maskKey {
+//            frame.data.webSocketUnmask(maskKey)
+//        }
+
+        // apply extension
+//        for var ext in self.extensions {
+//            do {
+//                frame = try ext.decode(frame: frame, allocator: self.channel.allocator)
+//            } catch {
+//                logger.debug("Websocket extension decode error: \(error). Skip frame processing and close the channel.")
+//                self.closeChannel()
+//                return
+//            }
+//        }
+        
         var data = frame.data
-        if let maskKey = frame.maskKey {
-            data.webSocketUnmask(maskKey)
-        }
         let originalDataReaderIdx = data.readerIndex
 
         switch frame.opcode {
@@ -533,15 +561,17 @@ extension WebSocket {
     public struct ConnectionInfo: Sendable {
 
         /// The URL that the WebSocket client connects to
-        let url: URLComponents
+        let url: URLComponents?
 
         /// The protocol, "ws" or "wss", that the WebSocket follows
         let `protocol`: String?
-        // TODO: extension
 
-        init(url: URLComponents, protocol: String? = nil) {
+//        let extensions: [any WebSocketExtensionOption]?
+
+        init(url: URLComponents? = nil, protocol: String? = nil) {
             self.url = url
             self.protocol = `protocol`
+//            self.extensions = extensions
         }
     }
 }

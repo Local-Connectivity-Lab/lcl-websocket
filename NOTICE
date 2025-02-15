@@ -39,3 +39,12 @@ This product contains .swift-format from apple/swift-nio.
     * https://github.com/apple/swift-nio
 
 ---
+
+This product contains compression and decompression code from apple/swift-nio-extras.
+
+  * LICENSE (Apache License 2.0):
+    * https://github.com/apple/swift-nio-extras/blob/main/LICENSE.txt
+  * HOMEPAGE:
+    * https://github.com/apple/swift-nio-extras
+
+---

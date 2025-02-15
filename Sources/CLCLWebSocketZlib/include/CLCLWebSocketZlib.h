@@ -28,7 +28,7 @@ static inline int CLCLWebSocketZlib_inflateInit2(z_streamp strm, int windowBits)
     return inflateInit2(strm, windowBits);
 }
 
-static inline Bytef CLCLWebSocketZlib_voidPtr_to_BytefPtr(void *in) {
+static inline Bytef *CLCLWebSocketZlib_voidPtr_to_BytefPtr(void *in) {
     return (Bytef *)in;
 }
 
