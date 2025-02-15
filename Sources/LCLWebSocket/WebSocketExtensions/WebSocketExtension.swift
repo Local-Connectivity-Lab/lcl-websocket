@@ -25,7 +25,7 @@ public protocol WebSocketExtension: Sendable {
 public protocol WebSocketExtensionOption: Sendable {
     associatedtype OptionType
     associatedtype ExtensionType: WebSocketExtension
-    
+
     func negotiate(_ httpHeaders: HTTPHeaders) throws -> OptionType?
     func accept(_ httpHeaders: HTTPHeaders) throws -> OptionType?
     func makeExtension() -> ExtensionType

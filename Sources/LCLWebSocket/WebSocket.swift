@@ -29,7 +29,7 @@ public final class WebSocket: Sendable {
     private let state: NIOLockedValueBox<WebSocketState>
     private let timerTracker: NIOLockedValueBox<TimerTracker>
     private let connectionInfo: ConnectionInfo
-//    private let extensions: [any WebSocketExtension]
+    //    private let extensions: [any WebSocketExtension]
 
     // MARK: callbacks
     private let _onPing: NIOLoopBoundBox<(@Sendable (WebSocket, ByteBuffer) -> Void)?>
@@ -59,7 +59,7 @@ public final class WebSocket: Sendable {
         self._onClosing = .makeEmptyBox(eventLoop: channel.eventLoop)
         self._onClosed = .makeEmptyBox(eventLoop: channel.eventLoop)
         self.connectionInfo = connectionInfo
-//        self.extensions = self.connectionInfo.extensions?.compactMap { $0.makeExtension() }.reversed() ?? []
+        //        self.extensions = self.connectionInfo.extensions?.compactMap { $0.makeExtension() }.reversed() ?? []
         if self.configuration.autoPingConfiguration.keepAlive {
             self.scheduleNextPing()
         }
@@ -140,19 +140,19 @@ public final class WebSocket: Sendable {
                 maskKey: self.makeMaskingKey(),
                 data: buffer
             )
-//            
-//            if opcode == .binary || opcode == .text {
-//                for var ext in self.extensions {
-//                    do {
-//                        frame = try ext.encode(frame: frame, allocator: self.channel.allocator)
-//                    } catch {
-//                        logger.error("websocket extension failed: \(error)")
-//                        promise?.fail(error)
-//                        return
-//                    }
-//                }
-//            }
-            
+            //
+            //            if opcode == .binary || opcode == .text {
+            //                for var ext in self.extensions {
+            //                    do {
+            //                        frame = try ext.encode(frame: frame, allocator: self.channel.allocator)
+            //                    } catch {
+            //                        logger.error("websocket extension failed: \(error)")
+            //                        promise?.fail(error)
+            //                        return
+            //                    }
+            //                }
+            //            }
+
             logger.debug("sent: \(frame)")
             self.channel.writeAndFlush(frame, promise: promise)
         case (.closed, _), (.closing, _):
@@ -303,27 +303,27 @@ public final class WebSocket: Sendable {
         logger.debug("frame received: \(frame)")
         // TODO: the following applies to websocket without extension negotiated.
         // Note: Extension support will come later
-//        if self.extensions.isEmpty && (frame.rsv1 || frame.rsv2 || frame.rsv3) {
-//            self.closeChannel()
-//            return
-//        }
+        //        if self.extensions.isEmpty && (frame.rsv1 || frame.rsv2 || frame.rsv3) {
+        //            self.closeChannel()
+        //            return
+        //        }
 
-//        var frame = frame
-//        if let maskKey = frame.maskKey {
-//            frame.data.webSocketUnmask(maskKey)
-//        }
+        //        var frame = frame
+        //        if let maskKey = frame.maskKey {
+        //            frame.data.webSocketUnmask(maskKey)
+        //        }
 
         // apply extension
-//        for var ext in self.extensions {
-//            do {
-//                frame = try ext.decode(frame: frame, allocator: self.channel.allocator)
-//            } catch {
-//                logger.debug("Websocket extension decode error: \(error). Skip frame processing and close the channel.")
-//                self.closeChannel()
-//                return
-//            }
-//        }
-        
+        //        for var ext in self.extensions {
+        //            do {
+        //                frame = try ext.decode(frame: frame, allocator: self.channel.allocator)
+        //            } catch {
+        //                logger.debug("Websocket extension decode error: \(error). Skip frame processing and close the channel.")
+        //                self.closeChannel()
+        //                return
+        //            }
+        //        }
+
         var data = frame.data
         let originalDataReaderIdx = data.readerIndex
 
@@ -566,12 +566,12 @@ extension WebSocket {
         /// The protocol, "ws" or "wss", that the WebSocket follows
         let `protocol`: String?
 
-//        let extensions: [any WebSocketExtensionOption]?
+        //        let extensions: [any WebSocketExtensionOption]?
 
         init(url: URLComponents? = nil, protocol: String? = nil) {
             self.url = url
             self.protocol = `protocol`
-//            self.extensions = extensions
+            //            self.extensions = extensions
         }
     }
 }

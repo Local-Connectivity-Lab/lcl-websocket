@@ -13,9 +13,8 @@
 import CLCLWebSocketZlib
 import Foundation
 import NIOCore
-import NIOWebSocket
 import NIOHTTP1
-
+import NIOWebSocket
 
 #if (os(Linux) || os(Android)) && !canImport(Musl)
 public typealias WindowBitsValue = Int32
@@ -24,17 +23,17 @@ public typealias WindowBitsValue = CInt
 #endif
 
 public struct PerMessageDeflateExtensionOption: WebSocketExtensionOption {
-    
+
     public typealias OptionType = Self
     public typealias ExtensionType = PerMessageDeflateCompression
-    
+
     static let defaultMaxWindowBits: Int = 15
-    
+
     private enum PerMessageDeflateHTTPHeaderFieldType {
-        
+
         case int(Int)
         case none
-        
+
         var intVal: Int? {
             switch self {
             case .int(let x): return x
@@ -42,7 +41,7 @@ public struct PerMessageDeflateExtensionOption: WebSocketExtensionOption {
             }
         }
     }
-    
+
     public typealias MaxWindowBitsValue = Int
     static let keyword: String = "permessage-deflate"
 
@@ -52,23 +51,24 @@ public struct PerMessageDeflateExtensionOption: WebSocketExtensionOption {
     let clientMaxWindowBits: Int?
     public let reservedBits: WebSocketFrame.ReservedBits
     public var httpHeader: (name: String, val: String) {
-        return (name: "Sec-WebSocket-Extensions", val: self.description)
+        (name: "Sec-WebSocket-Extensions", val: self.description)
     }
-    
+
     private let maxDecompressionSize: Int
     private let minCompressionSize: Int
     private let memoryLevel: Int
 
     let isServer: Bool
-    
-    public init(isServer: Bool,
-         serverNoTakeover: Bool = false,
-         clientNoTakeover: Bool = false,
-         serverMaxWindowBits: Int? = nil,
-         clientMaxWindowBits: Int? = nil,
+
+    public init(
+        isServer: Bool,
+        serverNoTakeover: Bool = false,
+        clientNoTakeover: Bool = false,
+        serverMaxWindowBits: Int? = nil,
+        clientMaxWindowBits: Int? = nil,
         maxDecompressionSize: Int = 1 << 24,
         minCompressionSize: Int = 1024,
-                memoryLevel: Int = 8
+        memoryLevel: Int = 8
     ) {
         if let clientMaxWindowBits = clientMaxWindowBits {
             precondition(clientMaxWindowBits <= 15 && clientMaxWindowBits >= 8)
@@ -87,15 +87,15 @@ public struct PerMessageDeflateExtensionOption: WebSocketExtensionOption {
         self.minCompressionSize = minCompressionSize
         self.memoryLevel = memoryLevel
     }
-    
+
     public func negotiate(_ httpHeaders: NIOHTTP1.HTTPHeaders) throws -> PerMessageDeflateExtensionOption? {
         guard self.isServer else {
             preconditionFailure("Should not be called on client side")
         }
-        
+
         let offers = try self.decodeHTTPHeader(httpHeaders)
         for offer in offers {
-            
+
             let serverNoTakeoverOffer: Bool
             let clientNoTakeoverOffer: Bool
             var serverMaxWindowBitsOffer: Int? = nil
@@ -149,17 +149,25 @@ public struct PerMessageDeflateExtensionOption: WebSocketExtensionOption {
                 }
             }
 
-            return PerMessageDeflateExtensionOption(isServer: true, serverNoTakeover: serverNoTakeoverOffer, clientNoTakeover: clientNoTakeoverOffer, serverMaxWindowBits: serverMaxWindowBitsOffer, clientMaxWindowBits: clientMaxWindowBitsOffer, maxDecompressionSize: self.maxDecompressionSize, minCompressionSize: self.minCompressionSize, memoryLevel: self.memoryLevel)
+            return PerMessageDeflateExtensionOption(
+                isServer: true,
+                serverNoTakeover: serverNoTakeoverOffer,
+                clientNoTakeover: clientNoTakeoverOffer,
+                serverMaxWindowBits: serverMaxWindowBitsOffer,
+                clientMaxWindowBits: clientMaxWindowBitsOffer,
+                maxDecompressionSize: self.maxDecompressionSize,
+                minCompressionSize: self.minCompressionSize,
+                memoryLevel: self.memoryLevel
+            )
         }
-        
+
         return nil
     }
-    
+
     public func accept(_ httpHeaders: NIOHTTP1.HTTPHeaders) throws -> PerMessageDeflateExtensionOption? {
         guard !self.isServer else {
             preconditionFailure("Should not be called on the server side")
         }
-        
 
         let responses = try self.decodeHTTPHeader(httpHeaders)
         guard responses.count == 1 else {
@@ -218,7 +226,7 @@ public struct PerMessageDeflateExtensionOption: WebSocketExtensionOption {
             clientMaxWindowBitsOffer = request
         case (.some(let resp), .some(let req)):
             let respVal = resp.intVal ?? Self.defaultMaxWindowBits
-            
+
             if respVal > req {
                 throw WebSocketExtensionError.invalidServerResponse
             } else {
@@ -226,23 +234,40 @@ public struct PerMessageDeflateExtensionOption: WebSocketExtensionOption {
             }
         }
 
-        return PerMessageDeflateExtensionOption(isServer: false, serverNoTakeover: serverNoTakeoverOffer, clientNoTakeover: clientNoTakeoverOffer, serverMaxWindowBits: serverMaxWindowBitsOffer, clientMaxWindowBits: clientMaxWindowBitsOffer, maxDecompressionSize: self.maxDecompressionSize, minCompressionSize: self.minCompressionSize, memoryLevel: self.memoryLevel)
+        return PerMessageDeflateExtensionOption(
+            isServer: false,
+            serverNoTakeover: serverNoTakeoverOffer,
+            clientNoTakeover: clientNoTakeoverOffer,
+            serverMaxWindowBits: serverMaxWindowBitsOffer,
+            clientMaxWindowBits: clientMaxWindowBitsOffer,
+            maxDecompressionSize: self.maxDecompressionSize,
+            minCompressionSize: self.minCompressionSize,
+            memoryLevel: self.memoryLevel
+        )
     }
-    
+
     public func makeExtension() -> PerMessageDeflateCompression {
-        return PerMessageDeflateCompression(isServer: self.isServer, serverNoTakeover: self.serverNoTakeover, clientNoTakeover: self.clientNoTakeover, serverMaxWindowBits: self.serverMaxWindowBits, clientMaxWindowBits: self.clientMaxWindowBits, memoryLevel: memoryLevel)
+        PerMessageDeflateCompression(
+            isServer: self.isServer,
+            serverNoTakeover: self.serverNoTakeover,
+            clientNoTakeover: self.clientNoTakeover,
+            serverMaxWindowBits: self.serverMaxWindowBits,
+            clientMaxWindowBits: self.clientMaxWindowBits,
+            memoryLevel: memoryLevel
+        )
     }
-    
-    private func decodeHTTPHeader(_ httpHeaders: HTTPHeaders) throws -> [Dictionary<String, PerMessageDeflateHTTPHeaderFieldType>] {
+
+    private func decodeHTTPHeader(_ httpHeaders: HTTPHeaders) throws -> [[String: PerMessageDeflateHTTPHeaderFieldType]]
+    {
         let perMessageCompressionHeaderes = httpHeaders[canonicalForm: "Sec-WebSocket-Extensions"]
         var result: [[String: PerMessageDeflateHTTPHeaderFieldType]] = []
-        
+
         for ext in perMessageCompressionHeaderes {
             let splits = ext.split(separator: ";", omittingEmptySubsequences: true)
             guard let first = splits.first, first.trimmingCharacters(in: .whitespaces) == Self.keyword else {
                 continue
             }
-            
+
             var parsedHeaders = [String: PerMessageDeflateHTTPHeaderFieldType]()
 
             for param in splits.dropFirst() {
@@ -337,17 +362,16 @@ public struct PerMessageDeflateCompression {
     public let serverMaxWindowBits: Int?
     public var clientMaxWindowBits: Int?
     public var reservedBits: WebSocketFrame.ReservedBits
-    
+
     private let maxDecompressionSize: Int
     private let minCompressionSize: Int
     private let memoryLevel: Int
-//    static let keyword: String = "permessage-deflate"
+    //    static let keyword: String = "permessage-deflate"
     private static let deflateDefaultBytes: [UInt8] = [0x00, 0x00, 0xff, 0xff]
 
     // Indicate which side (client or server) this extension is used for. Default for server
     private let isServer: Bool
-    
-    
+
     var compressor: Compressor
     var decompressor: Decompressor
 
@@ -360,17 +384,27 @@ public struct PerMessageDeflateCompression {
         minCompressionSize: Int = 1024,
         memoryLevel: Int = 8
     ) {
-        self.init(isServer: true, serverNoTakeover: serverNoTakeover, clientNoTakeover: clientNoTakeover, serverMaxWindowBits: serverMaxWindowBits, clientMaxWindowBits: clientMaxWindowBits, maxDecompressionSize: maxDecompressionSize, minCompressionSize: minCompressionSize, memoryLevel: memoryLevel)
+        self.init(
+            isServer: true,
+            serverNoTakeover: serverNoTakeover,
+            clientNoTakeover: clientNoTakeover,
+            serverMaxWindowBits: serverMaxWindowBits,
+            clientMaxWindowBits: clientMaxWindowBits,
+            maxDecompressionSize: maxDecompressionSize,
+            minCompressionSize: minCompressionSize,
+            memoryLevel: memoryLevel
+        )
     }
 
-    init(isServer: Bool,
-                serverNoTakeover: Bool = false,
-                clientNoTakeover: Bool = false,
-                serverMaxWindowBits: Int? = nil,
-                clientMaxWindowBits: Int? = nil,
-                maxDecompressionSize: Int = .max,
-                minCompressionSize: Int = 1024,
-                memoryLevel: Int = 8
+    init(
+        isServer: Bool,
+        serverNoTakeover: Bool = false,
+        clientNoTakeover: Bool = false,
+        serverMaxWindowBits: Int? = nil,
+        clientMaxWindowBits: Int? = nil,
+        maxDecompressionSize: Int = .max,
+        minCompressionSize: Int = 1024,
+        memoryLevel: Int = 8
     ) {
         self.isServer = isServer
         self.clientNoTakeover = clientNoTakeover
@@ -383,10 +417,19 @@ public struct PerMessageDeflateCompression {
         self.memoryLevel = memoryLevel
 
         do {
-            let compressorMaxWindowBits: WindowBitsValue = self.isServer ? WindowBitsValue(self.serverMaxWindowBits ?? PerMessageDeflateExtensionOption.defaultMaxWindowBits) : WindowBitsValue(self.clientMaxWindowBits ?? PerMessageDeflateExtensionOption.defaultMaxWindowBits)
-            let decompressorMaxWindowBits: WindowBitsValue = self.isServer ? WindowBitsValue(self.clientMaxWindowBits ?? PerMessageDeflateExtensionOption.defaultMaxWindowBits) : WindowBitsValue(self.serverMaxWindowBits ?? PerMessageDeflateExtensionOption.defaultMaxWindowBits)
+            let compressorMaxWindowBits: WindowBitsValue =
+                self.isServer
+                ? WindowBitsValue(self.serverMaxWindowBits ?? PerMessageDeflateExtensionOption.defaultMaxWindowBits)
+                : WindowBitsValue(self.clientMaxWindowBits ?? PerMessageDeflateExtensionOption.defaultMaxWindowBits)
+            let decompressorMaxWindowBits: WindowBitsValue =
+                self.isServer
+                ? WindowBitsValue(self.clientMaxWindowBits ?? PerMessageDeflateExtensionOption.defaultMaxWindowBits)
+                : WindowBitsValue(self.serverMaxWindowBits ?? PerMessageDeflateExtensionOption.defaultMaxWindowBits)
             self.compressor = try Compressor(windowBits: compressorMaxWindowBits)
-            self.decompressor = try Decompressor(windowBits: decompressorMaxWindowBits, limit: .size(maxDecompressionSize))
+            self.decompressor = try Decompressor(
+                windowBits: decompressorMaxWindowBits,
+                limit: .size(maxDecompressionSize)
+            )
         } catch {
             fatalError()
         }
@@ -397,10 +440,9 @@ extension PerMessageDeflateCompression: WebSocketExtension {
 
     public mutating func encode(frame: WebSocketFrame, allocator: ByteBufferAllocator) throws -> WebSocketFrame {
         // skip control frame
-        if frame.opcode == .connectionClose ||
-            frame.opcode == .ping ||
-            frame.opcode == .pong ||
-            frame.opcode == .continuation {
+        if frame.opcode == .connectionClose || frame.opcode == .ping || frame.opcode == .pong
+            || frame.opcode == .continuation
+        {
             return frame
         }
 
@@ -411,17 +453,17 @@ extension PerMessageDeflateCompression: WebSocketExtension {
 
         var frame = frame
         let localNoTakeOver = self.isServer ? self.serverNoTakeover : self.clientNoTakeover
-//        let windowBits = (self.isServer ? self.serverMaxWindowBits : self.clientMaxWindowBits) ?? 15
-//        if !localNoTakeOver || self.compressor == nil {
-//            // deinitialize the previous compressor, if exists
-//            self.compressor?.shutdown()
-//
-//            self.compressor = try Compressor(windowBits: -WindowBitsValue(windowBits))
-//        }
-//
-//        guard let compressor = self.compressor else {
-//            preconditionFailure("Compressor should be initialized")
-//        }
+        //        let windowBits = (self.isServer ? self.serverMaxWindowBits : self.clientMaxWindowBits) ?? 15
+        //        if !localNoTakeOver || self.compressor == nil {
+        //            // deinitialize the previous compressor, if exists
+        //            self.compressor?.shutdown()
+        //
+        //            self.compressor = try Compressor(windowBits: -WindowBitsValue(windowBits))
+        //        }
+        //
+        //        guard let compressor = self.compressor else {
+        //            preconditionFailure("Compressor should be initialized")
+        //        }
 
         let outputBuffer = try compressor.compress(&frame.data, using: allocator)
         return WebSocketFrame(
@@ -441,23 +483,26 @@ extension PerMessageDeflateCompression: WebSocketExtension {
         allocator: ByteBufferAllocator
     ) throws -> WebSocketFrame {
         // precondition: frame data is already unmasked
-        
+
         func decompose(input: inout ByteBuffer) throws -> ByteBuffer {
             var decodedData: ByteBuffer = allocator.buffer(capacity: Decompressor.decompressionDefaultBufferSize)
-            let inflateResult = try self.decompressor.decompress(input: &input, output: &decodedData, compressedLength: input.readableBytes)
+            let inflateResult = try self.decompressor.decompress(
+                input: &input,
+                output: &decodedData,
+                compressedLength: input.readableBytes
+            )
             if !inflateResult.complete {
                 var remaining = try decompose(input: &input)
                 decodedData.writeBuffer(&remaining)
             }
-            
+
             return decodedData
         }
-        
+
         // skip control frame
-        if frame.opcode == .connectionClose ||
-            frame.opcode == .ping ||
-            frame.opcode == .pong ||
-            frame.opcode == .continuation {
+        if frame.opcode == .connectionClose || frame.opcode == .ping || frame.opcode == .pong
+            || frame.opcode == .continuation
+        {
             return frame
         }
 
@@ -470,7 +515,7 @@ extension PerMessageDeflateCompression: WebSocketExtension {
         var unmaskedData: ByteBuffer = frame.data
         unmaskedData.writeBytes(Self.deflateDefaultBytes)
         let decodedData = try decompose(input: &unmaskedData)
-        
+
         if remoteNoTakeOver {
             try decompressor.reset()
         }
@@ -541,7 +586,7 @@ extension PerMessageDeflateCompression {
 
     // The following code is adapted from https://github.com/apple/swift-nio-extras/blob/main/Sources/NIOHTTPCompression/HTTPDecompression.swift
     final class Decompressor: @unchecked Sendable {
-        
+
         static let decompressionDefaultBufferSize: Int = 16384
 
         struct DecompressionLimit: Sendable {
@@ -583,7 +628,7 @@ extension PerMessageDeflateCompression {
             self.inflatedCount = 0
             self.stream = z_stream()
             self.isActive = false
-            
+
             self.stream.zalloc = nil
             self.stream.zfree = nil
             self.stream.opaque = nil
@@ -596,7 +641,7 @@ extension PerMessageDeflateCompression {
             }
             self.isActive = true
         }
-        
+
         deinit {
             shutdown()
         }
@@ -616,7 +661,7 @@ extension PerMessageDeflateCompression {
             }
             return inflateResult
         }
-        
+
         func reset() throws {
             if self.isActive {
                 let ret = CLCLWebSocketZlib.inflateReset(&self.stream)

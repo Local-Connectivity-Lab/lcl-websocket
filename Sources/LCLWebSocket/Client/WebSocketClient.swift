@@ -108,7 +108,12 @@ public struct WebSocketClient: Sendable, LCLWebSocketListenable {
             return self.eventloopGroup.any().makeFailedFuture(LCLWebSocketError.invalidURL)
         }
 
-        return self.connect(to: urlComponents, headers: headers, configuration: configuration, supportedExtensions: supportedExtensions)
+        return self.connect(
+            to: urlComponents,
+            headers: headers,
+            configuration: configuration,
+            supportedExtensions: supportedExtensions
+        )
     }
 
     /// Connect the WebSocket client to the given endpoint. The WebSocket client is configured using the provied configuration.
@@ -130,7 +135,12 @@ public struct WebSocketClient: Sendable, LCLWebSocketListenable {
             return self.eventloopGroup.any().makeFailedFuture(LCLWebSocketError.invalidURL)
         }
 
-        return self.connect(to: urlComponents, headers: headers, configuration: configuration, supportedExtensions: supportedExtensions)
+        return self.connect(
+            to: urlComponents,
+            headers: headers,
+            configuration: configuration,
+            supportedExtensions: supportedExtensions
+        )
     }
 
     /// Connect the WebSocket client to the given endpoint. The WebSocket client is configured using the provied configuration.
