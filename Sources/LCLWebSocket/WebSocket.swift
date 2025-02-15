@@ -411,7 +411,7 @@ public final class WebSocket: Sendable {
                 preconditionFailure("WebSocket connection is not established.")
             }
         case .continuation:
-            preconditionFailure("continuation frame is filtered by swiftnio")
+            preconditionFailure("continuation frame is filtered by WebSocketHandler")
         case .ping:
             if frame.fin {
                 self._onPing.value?(self, data)
