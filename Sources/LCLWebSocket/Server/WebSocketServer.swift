@@ -134,7 +134,7 @@ public struct WebSocketServer: Sendable, LCLWebSocketListenable {
         supportedExtensions: [any WebSocketExtensionOption] = []
     ) -> EventLoopFuture<Void> {
         self.makeBootstrapAndBind(with: configuration, resolvedAddress: address) { channel in
-            logger.debug("Servicing new connection: \(String(describing: channel.remoteAddress))")
+            logger.info("Servicing new connection: \(String(describing: channel.remoteAddress))")
             do {
                 try self.initializeChildChannel(using: configuration, on: channel)
             } catch {
@@ -385,7 +385,7 @@ extension WebSocketServer {
         configuration: LCLWebSocket.Configuration
     ) -> EventLoopFuture<Void> {
         self.makeBootstrapAndBind(with: configuration, resolvedAddress: address) { channel in
-            logger.debug("Servicing new connection: \(String(describing: channel.remoteAddress))")
+            logger.info("Servicing new connection: \(String(describing: channel.remoteAddress))")
             do {
                 try self.initializeChildChannel(using: configuration, on: channel)
             } catch {
@@ -464,7 +464,7 @@ extension WebSocketServer {
         }
 
         let serverUpgradeConfig = NIOTypedHTTPServerUpgradeConfiguration(upgraders: [upgrader]) { channel in
-            logger.debug("server upgrade failed")
+            logger.error("server upgrade failed")
             return channel.eventLoop.makeSucceededFuture(UpgradeResult.notUpgraded(nil))
         }
 
