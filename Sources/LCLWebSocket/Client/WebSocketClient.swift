@@ -237,7 +237,7 @@ public struct WebSocketClient: Sendable, LCLWebSocketListenable {
                     )
 
                     try channel.pipeline.syncOperations.addHandlers(
-                        WebSocketHandler(websocket: websocket, configuration: configuration)
+                        WebSocketHandler(websocket: websocket, configuration: configuration, extensions: acceptedExtension)
                     )
                     self._onOpen?(websocket)
                     return channel.eventLoop.makeSucceededVoidFuture()
@@ -440,13 +440,14 @@ extension WebSocketClient {
     public func typedConnect(
         to endpoint: String,
         headers: [String: String] = [:],
-        configuration: LCLWebSocket.Configuration
+        configuration: LCLWebSocket.Configuration,
+        supportedExtensions: [any WebSocketExtensionOption] = []
     ) -> EventLoopFuture<Void> {
         guard let urlComponents = URLComponents(string: endpoint) else {
             return self.eventloopGroup.any().makeFailedFuture(LCLWebSocketError.invalidURL)
         }
 
-        return self.typedConnect(to: urlComponents, headers: headers, configuration: configuration)
+        return self.typedConnect(to: urlComponents, headers: headers, configuration: configuration, supportedExtensions: supportedExtensions)
     }
 
     /// Connect the WebSocket client to the given endpoint. The WebSocket client is configured using the provied configuration.
@@ -464,13 +465,14 @@ extension WebSocketClient {
     public func typedConnect(
         to url: URL,
         headers: [String: String] = [:],
-        configuration: LCLWebSocket.Configuration
+        configuration: LCLWebSocket.Configuration,
+        supportedExtensions: [any WebSocketExtensionOption] = []
     ) -> EventLoopFuture<Void> {
         guard let urlComponents = URLComponents.init(url: url, resolvingAgainstBaseURL: false) else {
             return self.eventloopGroup.any().makeFailedFuture(LCLWebSocketError.invalidURL)
         }
 
-        return self.typedConnect(to: urlComponents, headers: headers, configuration: configuration)
+        return self.typedConnect(to: urlComponents, headers: headers, configuration: configuration, supportedExtensions: supportedExtensions)
     }
 
     /// Connect the WebSocket client to the given endpoint. The WebSocket client is configured using the provied configuration.
@@ -488,7 +490,8 @@ extension WebSocketClient {
     public func typedConnect(
         to endpoint: URLComponents,
         headers: [String: String],
-        configuration: LCLWebSocket.Configuration
+        configuration: LCLWebSocket.Configuration,
+        supportedExtensions: [any WebSocketExtensionOption]
     ) -> EventLoopFuture<Void> {
         guard let s = endpoint.scheme, let scheme = WebSocketScheme(rawValue: s) else {
             return self.eventloopGroup.any().makeFailedFuture(LCLWebSocketError.invalidURL)
@@ -551,7 +554,18 @@ extension WebSocketClient {
 
                 return try channel.pipeline.syncOperations.configureUpgradableHTTPClientPipeline(
                     configuration: httpClientPipelineConfiguration
-                )
+                ).flatMapThrowing { upgradeResult in
+                    if !supportedExtensions.isEmpty {
+                        let clientUpgradeHandler = try channel.pipeline.syncOperations.handler(
+                            type: NIOHTTPClientUpgradeHandler.self
+                        )
+                        try channel.pipeline.syncOperations.addHandler(
+                            WebSocketExtensionNegotiationResponseHandler(supportedExtensions: supportedExtensions),
+                            position: .before(clientUpgradeHandler)
+                        )
+                    }
+                    return upgradeResult
+                }
             } catch {
                 return channel.eventLoop.makeCompletedFuture { .notUpgraded(error) }
             }
@@ -566,6 +580,22 @@ extension WebSocketClient {
                     return self.eventloopGroup.any().makeFailedFuture(LCLWebSocketError.notUpgraded)
                 }
             case .websocket(let channel):
+                let acceptedExtension: [any WebSocketExtensionOption]
+                if !supportedExtensions.isEmpty {
+                    do {
+                        let extensionHandler = try channel.pipeline.syncOperations.handler(
+                            type: WebSocketExtensionNegotiationResponseHandler.self
+                        )
+                        acceptedExtension = extensionHandler.acceptedExtensions
+
+                        channel.pipeline.syncOperations.removeHandler(extensionHandler, promise: nil)
+                    } catch {
+                        return channel.eventLoop.makeFailedFuture(error)
+                    }
+                } else {
+                    acceptedExtension = []
+                }
+                
                 let websocketConnectionInfo = WebSocket.ConnectionInfo(url: endpoint)
                 let websocket = WebSocket(
                     channel: channel,
@@ -591,7 +621,7 @@ extension WebSocketClient {
                     )
 
                     try channel.pipeline.syncOperations.addHandler(
-                        WebSocketHandler(websocket: websocket, configuration: configuration)
+                        WebSocketHandler(websocket: websocket, configuration: configuration, extensions: acceptedExtension)
                     )
                     self._onOpen?(websocket)
                 } catch {

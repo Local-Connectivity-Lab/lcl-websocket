@@ -28,6 +28,18 @@ static inline int CLCLWebSocketZlib_inflateInit2(z_streamp strm, int windowBits)
     return inflateInit2(strm, windowBits);
 }
 
+static inline int CLCLWebSocketZlib_inflateReset(z_streamp strm) {
+    return inflateReset(strm);
+}
+
+static inline int CLCLWebSocketZlib_deflateReset(z_streamp strm) {
+    return deflateReset(strm);
+}
+
+static inline int CLCLWebSocketZlib_deflateBound(z_streamp strm, uLong sourceLen) {
+    return deflateBound(strm, sourceLen);
+}
+
 static inline Bytef *CLCLWebSocketZlib_voidPtr_to_BytefPtr(void *in) {
     return (Bytef *)in;
 }

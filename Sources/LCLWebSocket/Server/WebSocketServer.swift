@@ -134,7 +134,7 @@ public struct WebSocketServer: Sendable, LCLWebSocketListenable {
         supportedExtensions: [any WebSocketExtensionOption] = []
     ) -> EventLoopFuture<Void> {
         self.makeBootstrapAndBind(with: configuration, resolvedAddress: address) { channel in
-            logger.debug("child channel: \(channel)")
+            logger.debug("Servicing new connection: \(String(describing: channel.remoteAddress))")
             do {
                 try self.initializeChildChannel(using: configuration, on: channel)
             } catch {
@@ -206,7 +206,6 @@ public struct WebSocketServer: Sendable, LCLWebSocketListenable {
             }
 
             let url = channel.remoteAddress?.ipAddress.flatMap { URLComponents(string: $0) }
-            print(channel.pipeline.debugDescription)
             let websocket = WebSocket(
                 channel: channel,
                 type: .server,
@@ -228,7 +227,7 @@ public struct WebSocketServer: Sendable, LCLWebSocketListenable {
                     )
                 )
                 try channel.pipeline.syncOperations.addHandler(
-                    WebSocketHandler(websocket: websocket, configuration: configuration)
+                    WebSocketHandler(websocket: websocket, configuration: configuration, extensions: acceptedExtensions)
                 )
                 self._onOpen?(websocket)
                 return channel.eventLoop.makeSucceededVoidFuture()
@@ -256,7 +255,6 @@ public struct WebSocketServer: Sendable, LCLWebSocketListenable {
                 position: .before(httpServerUpgradeHandler)
             )
             try channel.pipeline.syncOperations.addHandler(HTTPServerRequestErrorHandler(), position: .last)
-            print(channel.pipeline.debugDescription)
 
             return channel.eventLoop.makeSucceededVoidFuture()
         } catch {
@@ -387,7 +385,7 @@ extension WebSocketServer {
         configuration: LCLWebSocket.Configuration
     ) -> EventLoopFuture<Void> {
         self.makeBootstrapAndBind(with: configuration, resolvedAddress: address) { channel in
-            logger.debug("child channel: \(channel)")
+            logger.debug("Servicing new connection: \(String(describing: channel.remoteAddress))")
             do {
                 try self.initializeChildChannel(using: configuration, on: channel)
             } catch {
@@ -457,7 +455,7 @@ extension WebSocketServer {
                     )
                 )
                 try channel.pipeline.syncOperations.addHandler(
-                    WebSocketHandler(websocket: websocket, configuration: configuration)
+                    WebSocketHandler(websocket: websocket, configuration: configuration, extensions: acceptedExtensions)
                 )
                 return channel.eventLoop.makeSucceededFuture(UpgradeResult.websocket)
             } catch {

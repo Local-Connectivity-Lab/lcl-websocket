@@ -29,7 +29,6 @@ public final class WebSocket: Sendable {
     private let state: NIOLockedValueBox<WebSocketState>
     private let timerTracker: NIOLockedValueBox<TimerTracker>
     private let connectionInfo: ConnectionInfo
-    //    private let extensions: [any WebSocketExtension]
 
     // MARK: callbacks
     private let _onPing: NIOLoopBoundBox<(@Sendable (WebSocket, ByteBuffer) -> Void)?>
@@ -59,7 +58,6 @@ public final class WebSocket: Sendable {
         self._onClosing = .makeEmptyBox(eventLoop: channel.eventLoop)
         self._onClosed = .makeEmptyBox(eventLoop: channel.eventLoop)
         self.connectionInfo = connectionInfo
-        //        self.extensions = self.connectionInfo.extensions?.compactMap { $0.makeExtension() }.reversed() ?? []
         if self.configuration.autoPingConfiguration.keepAlive {
             self.scheduleNextPing()
         }
@@ -134,27 +132,15 @@ public final class WebSocket: Sendable {
 
         switch (self.state.withLockedValue({ $0 }), opcode) {
         case (.open, _), (.closing, .connectionClose):
-            var frame = WebSocketFrame(
+            let frame = WebSocketFrame(
                 fin: fin,
                 opcode: opcode,
                 maskKey: self.makeMaskingKey(),
                 data: buffer
             )
-            //
-            //            if opcode == .binary || opcode == .text {
-            //                for var ext in self.extensions {
-            //                    do {
-            //                        frame = try ext.encode(frame: frame, allocator: self.channel.allocator)
-            //                    } catch {
-            //                        logger.error("websocket extension failed: \(error)")
-            //                        promise?.fail(error)
-            //                        return
-            //                    }
-            //                }
-            //            }
 
             logger.debug("sent: \(frame)")
-            self.channel.writeAndFlush(frame, promise: promise)
+            self.channel.write(frame, promise: promise)
         case (.closed, _), (.closing, _):
             logger.warning("Connection is already closed. Should not send any more frames")
         default:
@@ -301,45 +287,21 @@ public final class WebSocket: Sendable {
         }
 
         logger.debug("frame received: \(frame)")
-        // TODO: the following applies to websocket without extension negotiated.
-        // Note: Extension support will come later
-        //        if self.extensions.isEmpty && (frame.rsv1 || frame.rsv2 || frame.rsv3) {
-        //            self.closeChannel()
-        //            return
-        //        }
-
-        //        var frame = frame
-        //        if let maskKey = frame.maskKey {
-        //            frame.data.webSocketUnmask(maskKey)
-        //        }
-
-        // apply extension
-        //        for var ext in self.extensions {
-        //            do {
-        //                frame = try ext.decode(frame: frame, allocator: self.channel.allocator)
-        //            } catch {
-        //                logger.debug("Websocket extension decode error: \(error). Skip frame processing and close the channel.")
-        //                self.closeChannel()
-        //                return
-        //            }
-        //        }
 
         var data = frame.data
-        let originalDataReaderIdx = data.readerIndex
 
         switch frame.opcode {
         case .binary:
             self._onBinary.value?(self, data)
         case .text:
-            if data.readableBytes > 0 {
-                guard let text = data.readString(length: data.readableBytes, encoding: .utf8) else {
-                    // TODO: should the connection be closed or reply with error code?
-                    self.close(code: .dataInconsistentWithMessage, promise: nil)
-                    return
-                }
+            let decodingResult = decodeUFT8Encoding(of: data)
+            switch decodingResult {
+            case .success(let text):
                 self._onText.value?(self, text)
-            } else {
-                self._onText.value?(self, "")
+            case .failure(let error):
+                logger.error("Text message is NOT UTF-8 encoded: \(error)")
+                self.close(code: .dataInconsistentWithMessage, reason: error.localizedDescription, promise: nil)
+                return
             }
         case .connectionClose:
             // if a previous close frame is received
@@ -349,6 +311,7 @@ public final class WebSocket: Sendable {
             // if we have not sent a close frame
             // we send the close frame, with the same application data
 
+            let originalDataReaderIdx = data.readerIndex
             switch self.state.withLockedValue({ $0 }) {
             case .closing:
                 logger.debug("Closing handshake complete")
@@ -440,6 +403,29 @@ public final class WebSocket: Sendable {
         default:
             self._onError.value?(LCLWebSocketError.unknownOpCode(frame.opcode))
             self.closeChannel()
+        }
+    }
+    
+    private func decodeUFT8Encoding(of data: ByteBuffer) -> Result<String, Error> {
+        if data.readableBytes == 0 {
+            return .success("")
+        }
+        
+        do {
+            if #available(macOS 15, iOS 18, tvOS 18, watchOS 11, *) {
+                let text = try data.getUTF8ValidatedString(at: data.readerIndex, length: data.readableBytes) ?? ""
+                return .success(text)
+            } else {
+                guard let bytes = data.getData(at: data.readerIndex, length: data.readableBytes),
+                    let text = String(data: bytes, encoding: .utf8)
+                else {
+                    throw LCLWebSocketError.invalidUTF8String
+                }
+                return .success(text)
+            }
+
+        } catch {
+            return .failure(error)
         }
     }
 
@@ -566,12 +552,9 @@ extension WebSocket {
         /// The protocol, "ws" or "wss", that the WebSocket follows
         let `protocol`: String?
 
-        //        let extensions: [any WebSocketExtensionOption]?
-
         init(url: URLComponents? = nil, protocol: String? = nil) {
             self.url = url
             self.protocol = `protocol`
-            //            self.extensions = extensions
         }
     }
 }

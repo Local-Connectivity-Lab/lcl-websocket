@@ -66,6 +66,9 @@ public enum LCLWebSocketError: Error {
 
     /// Invalid UTF-8 string.
     case invalidUTF8String
+    
+    /// Invalid reserved bits.
+    case invalidReservedBits
 }
 
 extension LCLWebSocketError: CustomStringConvertible {
@@ -105,6 +108,8 @@ extension LCLWebSocketError: CustomStringConvertible {
             return "Received continuation frame without previous fragment frame"
         case .invalidUTF8String:
             return "Invalid UTF-8 string"
+        case .invalidReservedBits:
+            return "Invalid reserved bits"
         }
     }
 }

@@ -55,7 +55,6 @@ public struct PerMessageDeflateExtensionOption: WebSocketExtensionOption {
     }
 
     private let maxDecompressionSize: Int
-    private let minCompressionSize: Int
     private let memoryLevel: Int
 
     let isServer: Bool
@@ -67,7 +66,6 @@ public struct PerMessageDeflateExtensionOption: WebSocketExtensionOption {
         serverMaxWindowBits: Int? = nil,
         clientMaxWindowBits: Int? = nil,
         maxDecompressionSize: Int = 1 << 24,
-        minCompressionSize: Int = 1024,
         memoryLevel: Int = 8
     ) {
         if let clientMaxWindowBits = clientMaxWindowBits {
@@ -84,7 +82,6 @@ public struct PerMessageDeflateExtensionOption: WebSocketExtensionOption {
         self.clientMaxWindowBits = clientMaxWindowBits
         self.reservedBits = .rsv1
         self.maxDecompressionSize = maxDecompressionSize
-        self.minCompressionSize = minCompressionSize
         self.memoryLevel = memoryLevel
     }
 
@@ -156,7 +153,6 @@ public struct PerMessageDeflateExtensionOption: WebSocketExtensionOption {
                 serverMaxWindowBits: serverMaxWindowBitsOffer,
                 clientMaxWindowBits: clientMaxWindowBitsOffer,
                 maxDecompressionSize: self.maxDecompressionSize,
-                minCompressionSize: self.minCompressionSize,
                 memoryLevel: self.memoryLevel
             )
         }
@@ -170,6 +166,10 @@ public struct PerMessageDeflateExtensionOption: WebSocketExtensionOption {
         }
 
         let responses = try self.decodeHTTPHeader(httpHeaders)
+        if responses.isEmpty {
+            return nil
+        }
+
         guard responses.count == 1 else {
             throw WebSocketExtensionError.invalidServerResponse
         }
@@ -241,7 +241,6 @@ public struct PerMessageDeflateExtensionOption: WebSocketExtensionOption {
             serverMaxWindowBits: serverMaxWindowBitsOffer,
             clientMaxWindowBits: clientMaxWindowBitsOffer,
             maxDecompressionSize: self.maxDecompressionSize,
-            minCompressionSize: self.minCompressionSize,
             memoryLevel: self.memoryLevel
         )
     }
@@ -364,10 +363,8 @@ public struct PerMessageDeflateCompression {
     public var reservedBits: WebSocketFrame.ReservedBits
 
     private let maxDecompressionSize: Int
-    private let minCompressionSize: Int
     private let memoryLevel: Int
-    //    static let keyword: String = "permessage-deflate"
-    private static let deflateDefaultBytes: [UInt8] = [0x00, 0x00, 0xff, 0xff]
+    private static let emptyDeflateBlock: [UInt8] = [0x00, 0x00, 0xff, 0xff]
 
     // Indicate which side (client or server) this extension is used for. Default for server
     private let isServer: Bool
@@ -381,7 +378,6 @@ public struct PerMessageDeflateCompression {
         serverMaxWindowBits: Int? = nil,
         clientMaxWindowBits: Int? = nil,
         maxDecompressionSize: Int = 1 << 24,
-        minCompressionSize: Int = 1024,
         memoryLevel: Int = 8
     ) {
         self.init(
@@ -391,7 +387,6 @@ public struct PerMessageDeflateCompression {
             serverMaxWindowBits: serverMaxWindowBits,
             clientMaxWindowBits: clientMaxWindowBits,
             maxDecompressionSize: maxDecompressionSize,
-            minCompressionSize: minCompressionSize,
             memoryLevel: memoryLevel
         )
     }
@@ -403,7 +398,6 @@ public struct PerMessageDeflateCompression {
         serverMaxWindowBits: Int? = nil,
         clientMaxWindowBits: Int? = nil,
         maxDecompressionSize: Int = .max,
-        minCompressionSize: Int = 1024,
         memoryLevel: Int = 8
     ) {
         self.isServer = isServer
@@ -413,7 +407,6 @@ public struct PerMessageDeflateCompression {
         self.serverNoTakeover = serverNoTakeover
         self.reservedBits = .rsv1
         self.maxDecompressionSize = maxDecompressionSize
-        self.minCompressionSize = minCompressionSize
         self.memoryLevel = memoryLevel
 
         do {
@@ -425,13 +418,13 @@ public struct PerMessageDeflateCompression {
                 self.isServer
                 ? WindowBitsValue(self.clientMaxWindowBits ?? PerMessageDeflateExtensionOption.defaultMaxWindowBits)
                 : WindowBitsValue(self.serverMaxWindowBits ?? PerMessageDeflateExtensionOption.defaultMaxWindowBits)
-            self.compressor = try Compressor(windowBits: compressorMaxWindowBits)
+            self.compressor = try Compressor(windowBits: compressorMaxWindowBits, memoryLevel: memoryLevel)
             self.decompressor = try Decompressor(
                 windowBits: decompressorMaxWindowBits,
                 limit: .size(maxDecompressionSize)
             )
         } catch {
-            fatalError()
+            preconditionFailure("Error: \(error)")
         }
     }
 }
@@ -446,34 +439,26 @@ extension PerMessageDeflateCompression: WebSocketExtension {
             return frame
         }
 
-        // skip if rsv1 is not set
-        if !frame.rsv1 {
-            return frame
+        let localNoTakeOver = self.isServer ? self.serverNoTakeover : self.clientNoTakeover
+        var data = frame.data
+        var compressedData = try self.compressor.compress(&data, using: allocator)
+        if frame.fin {
+            // last frame, we need to remove the last four bytes
+            compressedData = compressedData.getSlice(at: compressedData.readerIndex, length: compressedData.readableBytes - 4) ?? allocator.buffer(capacity: 0)
+            
+            if localNoTakeOver {
+                try compressor.reset()
+            }
         }
 
-        var frame = frame
-        let localNoTakeOver = self.isServer ? self.serverNoTakeover : self.clientNoTakeover
-        //        let windowBits = (self.isServer ? self.serverMaxWindowBits : self.clientMaxWindowBits) ?? 15
-        //        if !localNoTakeOver || self.compressor == nil {
-        //            // deinitialize the previous compressor, if exists
-        //            self.compressor?.shutdown()
-        //
-        //            self.compressor = try Compressor(windowBits: -WindowBitsValue(windowBits))
-        //        }
-        //
-        //        guard let compressor = self.compressor else {
-        //            preconditionFailure("Compressor should be initialized")
-        //        }
-
-        let outputBuffer = try compressor.compress(&frame.data, using: allocator)
         return WebSocketFrame(
             fin: frame.fin,
-            rsv1: true,
+            rsv1: frame.opcode != .continuation,
             rsv2: frame.rsv2,
             rsv3: frame.rsv3,
             opcode: frame.opcode,
             maskKey: frame.maskKey,
-            data: outputBuffer,
+            data: compressedData,
             extensionData: frame.extensionData
         )
     }
@@ -500,23 +485,19 @@ extension PerMessageDeflateCompression: WebSocketExtension {
         }
 
         // skip control frame
-        if frame.opcode == .connectionClose || frame.opcode == .ping || frame.opcode == .pong
-            || frame.opcode == .continuation
-        {
-            return frame
-        }
-
-        if !frame.rsv1 {
+        if frame.opcode == .connectionClose || frame.opcode == .ping || frame.opcode == .pong {
             return frame
         }
 
         let remoteNoTakeOver = self.isServer ? self.clientNoTakeover : self.serverNoTakeover
 
-        var unmaskedData: ByteBuffer = frame.data
-        unmaskedData.writeBytes(Self.deflateDefaultBytes)
+        var unmaskedData = frame.data
+        if frame.fin {
+            unmaskedData.writeBytes(Self.emptyDeflateBlock)
+        }
         let decodedData = try decompose(input: &unmaskedData)
 
-        if remoteNoTakeOver {
+        if remoteNoTakeOver && frame.fin {
             try decompressor.reset()
         }
 
@@ -541,25 +522,33 @@ extension PerMessageDeflateCompression {
         private var stream: z_stream = z_stream()
         private var isActive = false
 
-        init(windowBits: WindowBitsValue) throws {
+        init(windowBits: WindowBitsValue, memoryLevel: Int = 8) throws {
             self.stream.zalloc = nil
             self.stream.zfree = nil
             self.stream.opaque = nil
 
             self.isActive = false
+            
+            guard memoryLevel <= 9 && memoryLevel >= 1 else {
+                throw CompressorError.invalidParameter
+            }
 
             let ret = CLCLWebSocketZlib_deflateInit2(
                 &self.stream,
                 Z_DEFAULT_COMPRESSION,
                 Z_DEFLATED,
                 -windowBits,
-                8,
+                Int32(memoryLevel),
                 Z_DEFAULT_STRATEGY
             )
             guard ret == Z_OK else {
                 throw CompressorError.compressionFailed(Int(ret))
             }
             self.isActive = true
+        }
+        
+        deinit {
+            self.shutdown()
         }
 
         func compress(_ input: inout ByteBuffer, using allocator: ByteBufferAllocator) throws -> ByteBuffer {
@@ -569,7 +558,7 @@ extension PerMessageDeflateCompression {
                 return allocator.buffer(capacity: 0)
             }
 
-            let bufferSize = deflateBound(&self.stream, UInt(input.readableBytes))
+            let bufferSize = CLCLWebSocketZlib_deflateBound(&self.stream, UInt(input.readableBytes))
             var output = allocator.buffer(capacity: Int(bufferSize) + 5)
             try self.stream.oneShotDeflate(from: &input, to: &output, flag: Z_SYNC_FLUSH)
 
@@ -580,6 +569,15 @@ extension PerMessageDeflateCompression {
             if self.isActive {
                 self.isActive = false
                 deflateEnd(&self.stream)
+            }
+        }
+        
+        func reset() throws {
+            if self.isActive {
+                let ret = CLCLWebSocketZlib_deflateReset(&self.stream)
+                guard ret == Z_OK else {
+                    throw CompressorError.resetFailed(Int(ret))
+                }
             }
         }
     }
@@ -643,7 +641,7 @@ extension PerMessageDeflateCompression {
         }
 
         deinit {
-            shutdown()
+            self.shutdown()
         }
 
         func decompress(
@@ -664,7 +662,7 @@ extension PerMessageDeflateCompression {
 
         func reset() throws {
             if self.isActive {
-                let ret = CLCLWebSocketZlib.inflateReset(&self.stream)
+                let ret = CLCLWebSocketZlib_inflateReset(&self.stream)
                 inflatedCount = 0
                 guard ret == Z_OK else {
                     throw DecompressionError.resetFailed(Int(ret))
@@ -693,43 +691,32 @@ extension PerMessageDeflateCompression {
     enum CompressorError: Error {
         case initializationFailed(Int)
         case compressionFailed(Int)
+        case resetFailed(Int)
+        case invalidParameter
     }
 }
 
 extension z_stream {
     mutating func oneShotDeflate(from: inout ByteBuffer, to: inout ByteBuffer, flag: Int32) throws {
-        defer {
-            self.avail_in = 0
-            self.avail_out = 0
-            self.next_in = nil
-            self.next_out = nil
-        }
-
-        try from.readWithUnsafeMutableReadableBytes { ptr in
-            let typedPtr = ptr.baseAddress!.assumingMemoryBound(to: UInt8.self)
-            let typedDataPtr = UnsafeMutableBufferPointer(start: typedPtr, count: ptr.count)
-            self.avail_in = UInt32(typedDataPtr.count)
-            self.next_in = typedDataPtr.baseAddress!
+        try from.readWithUnsafeMutableReadableBytes { fromPtr in
+            self.avail_in = UInt32(fromPtr.count)
+            self.next_in = CLCLWebSocketZlib_voidPtr_to_BytefPtr(fromPtr.baseAddress!)
 
             let ret = deflateToBuffer(&to, flag: flag)
             guard ret == Z_OK || ret == Z_STREAM_END else {
                 throw PerMessageDeflateCompression.CompressorError.compressionFailed(Int(ret))
             }
-            return typedDataPtr.count - Int(self.avail_in)
+            return self.next_in - CLCLWebSocketZlib_voidPtr_to_BytefPtr(fromPtr.baseAddress!)
         }
     }
 
     private mutating func deflateToBuffer(_ buffer: inout ByteBuffer, flag: Int32) -> Int32 {
         var ret = Z_OK
-        buffer.writeWithUnsafeMutableBytes(minimumWritableBytes: buffer.capacity) { ptr in
-            let typedPtr = UnsafeMutableBufferPointer(
-                start: ptr.baseAddress!.assumingMemoryBound(to: UInt8.self),
-                count: ptr.count
-            )
-            self.avail_out = UInt32(typedPtr.count)
-            self.next_out = typedPtr.baseAddress!
+        buffer.writeWithUnsafeMutableBytes(minimumWritableBytes: buffer.capacity) { toPtr in
+            self.avail_out = UInt32(toPtr.count)
+            self.next_out = CLCLWebSocketZlib_voidPtr_to_BytefPtr(toPtr.baseAddress!)
             ret = deflate(&self, flag)
-            return typedPtr.count - Int(self.avail_out)
+            return self.next_out - CLCLWebSocketZlib_voidPtr_to_BytefPtr(toPtr.baseAddress!)
         }
         return ret
     }

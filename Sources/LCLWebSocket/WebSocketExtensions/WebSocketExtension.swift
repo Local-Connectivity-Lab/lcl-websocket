@@ -18,6 +18,7 @@ import NIOPosix
 import NIOWebSocket
 
 public protocol WebSocketExtension: Sendable {
+    var reservedBits: WebSocketFrame.ReservedBits { get }
     mutating func decode(frame: WebSocketFrame, allocator: ByteBufferAllocator) throws -> WebSocketFrame
     mutating func encode(frame: WebSocketFrame, allocator: ByteBufferAllocator) throws -> WebSocketFrame
 }

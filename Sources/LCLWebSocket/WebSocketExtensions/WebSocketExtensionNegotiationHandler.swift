@@ -51,7 +51,6 @@ final class WebSocketExtensionNegotiationRequestHandler: ChannelDuplexHandler, R
                         let neogitationResult = result as? any WebSocketExtensionOption
                     {
                         acceptedExtensions.append(neogitationResult)
-                        print(neogitationResult)
                     }
                 } catch {
                     logger.error("Cannot accept Websocket extension in \(head.headers). Error: \(error)")
@@ -82,7 +81,6 @@ final class WebSocketExtensionNegotiationRequestHandler: ChannelDuplexHandler, R
                 }
                 let responseHead = HTTPResponseHead(version: head.version, status: head.status, headers: newHeaders)
                 context.write(self.wrapOutboundOut(.head(responseHead)), promise: promise)
-                print(acceptedExtensions)
             } else {
                 fallthrough
             }
@@ -129,7 +127,6 @@ final class WebSocketExtensionNegotiationResponseHandler: ChannelInboundHandler,
                             let neogitationResult = result as? any WebSocketExtensionOption
                         {
                             acceptedExtensions.append(neogitationResult)
-                            print(neogitationResult)
                         }
                     } catch {
                         logger.error("Cannot accept Websocket extension in \(head.headers). Error: \(error)")
