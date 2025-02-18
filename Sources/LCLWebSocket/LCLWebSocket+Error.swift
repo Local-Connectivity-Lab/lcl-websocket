@@ -66,7 +66,7 @@ public enum LCLWebSocketError: Error {
 
     /// Invalid UTF-8 string.
     case invalidUTF8String
-    
+
     /// Invalid reserved bits.
     case invalidReservedBits
 }

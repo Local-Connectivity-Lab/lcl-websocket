@@ -444,8 +444,10 @@ extension PerMessageDeflateCompression: WebSocketExtension {
         var compressedData = try self.compressor.compress(&data, using: allocator)
         if frame.fin {
             // last frame, we need to remove the last four bytes
-            compressedData = compressedData.getSlice(at: compressedData.readerIndex, length: compressedData.readableBytes - 4) ?? allocator.buffer(capacity: 0)
-            
+            compressedData =
+                compressedData.getSlice(at: compressedData.readerIndex, length: compressedData.readableBytes - 4)
+                ?? allocator.buffer(capacity: 0)
+
             if localNoTakeOver {
                 try compressor.reset()
             }
@@ -528,7 +530,7 @@ extension PerMessageDeflateCompression {
             self.stream.opaque = nil
 
             self.isActive = false
-            
+
             guard memoryLevel <= 9 && memoryLevel >= 1 else {
                 throw CompressorError.invalidParameter
             }
@@ -546,7 +548,7 @@ extension PerMessageDeflateCompression {
             }
             self.isActive = true
         }
-        
+
         deinit {
             self.shutdown()
         }
@@ -571,7 +573,7 @@ extension PerMessageDeflateCompression {
                 deflateEnd(&self.stream)
             }
         }
-        
+
         func reset() throws {
             if self.isActive {
                 let ret = CLCLWebSocketZlib_deflateReset(&self.stream)

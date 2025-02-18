@@ -13,12 +13,11 @@
 import NIOCore
 import NIOFoundationCompat
 import NIOWebSocket
-import CryptoKit
 
 final class WebSocketHandler: ChannelDuplexHandler {
     typealias InboundIn = WebSocketFrame
-    typealias OutboundOut = WebSocketFrame
     typealias InboundOut = WebSocketFrame
+    typealias OutboundOut = WebSocketFrame
     typealias OutboundIn = WebSocketFrame
 
     private let websocket: WebSocket
@@ -46,8 +45,7 @@ final class WebSocketHandler: ChannelDuplexHandler {
         logger.debug("WebSocketHandler channelUnregistered")
     }
     #endif  // DEBUG
-    
-    
+
     // Validate if the frame is a valid WebSocket frame according to the opcode.
     // If the frame is the first frame in a fragmented sequence, this frame will be buffered.
     private func validateFrame(_ frame: WebSocketFrame) throws {
@@ -67,8 +65,10 @@ final class WebSocketHandler: ChannelDuplexHandler {
             // ok
             ()
         }
-        
-        if self.extensions.isEmpty && (frame.rsv1 || frame.rsv2 || frame.rsv3) || (frame.opcode == .continuation && frame.rsv1) {
+
+        if self.extensions.isEmpty && (frame.rsv1 || frame.rsv2 || frame.rsv3)
+            || (frame.opcode == .continuation && frame.rsv1)
+        {
             throw LCLWebSocketError.invalidReservedBits
         }
     }
@@ -76,20 +76,24 @@ final class WebSocketHandler: ChannelDuplexHandler {
     func channelRead(context: ChannelHandlerContext, data: NIOAny) {
         var frame = self.unwrapInboundIn(data)
         logger.debug("received frame: \(frame)")
-        
+
         // check if the frame is valid
         do {
             try validateFrame(frame)
         } catch {
             logger.error("cannot verify frame: \(frame). Error: \(error)")
-            self.websocket.close(code: .protocolError, reason: (error as? LCLWebSocketError).debugDescription, promise: nil)
+            self.websocket.close(
+                code: .protocolError,
+                reason: (error as? LCLWebSocketError).debugDescription,
+                promise: nil
+            )
             return
         }
-        
+
         if let maskKey = frame.maskKey {
             frame.data.webSocketUnmask(maskKey)
         }
-        
+
         // decode frame with extension, if any
         do {
             for var ext in self.extensions.reversed() {
@@ -150,7 +154,7 @@ final class WebSocketHandler: ChannelDuplexHandler {
             clearBufferedFrames()
         }
     }
-    
+
     func write(context: ChannelHandlerContext, data: NIOAny, promise: EventLoopPromise<Void>?) {
         var frame = self.unwrapOutboundIn(data)
         if frame.opcode == .binary || frame.opcode == .text || frame.opcode == .continuation {

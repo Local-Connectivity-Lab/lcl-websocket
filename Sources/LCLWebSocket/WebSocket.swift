@@ -405,12 +405,12 @@ public final class WebSocket: Sendable {
             self.closeChannel()
         }
     }
-    
+
     private func decodeUFT8Encoding(of data: ByteBuffer) -> Result<String, Error> {
         if data.readableBytes == 0 {
             return .success("")
         }
-        
+
         do {
             if #available(macOS 15, iOS 18, tvOS 18, watchOS 11, *) {
                 let text = try data.getUTF8ValidatedString(at: data.readerIndex, length: data.readableBytes) ?? ""

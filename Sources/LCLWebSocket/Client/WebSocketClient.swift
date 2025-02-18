@@ -237,7 +237,11 @@ public struct WebSocketClient: Sendable, LCLWebSocketListenable {
                     )
 
                     try channel.pipeline.syncOperations.addHandlers(
-                        WebSocketHandler(websocket: websocket, configuration: configuration, extensions: acceptedExtension)
+                        WebSocketHandler(
+                            websocket: websocket,
+                            configuration: configuration,
+                            extensions: acceptedExtension
+                        )
                     )
                     self._onOpen?(websocket)
                     return channel.eventLoop.makeSucceededVoidFuture()
@@ -447,7 +451,12 @@ extension WebSocketClient {
             return self.eventloopGroup.any().makeFailedFuture(LCLWebSocketError.invalidURL)
         }
 
-        return self.typedConnect(to: urlComponents, headers: headers, configuration: configuration, supportedExtensions: supportedExtensions)
+        return self.typedConnect(
+            to: urlComponents,
+            headers: headers,
+            configuration: configuration,
+            supportedExtensions: supportedExtensions
+        )
     }
 
     /// Connect the WebSocket client to the given endpoint. The WebSocket client is configured using the provied configuration.
@@ -472,7 +481,12 @@ extension WebSocketClient {
             return self.eventloopGroup.any().makeFailedFuture(LCLWebSocketError.invalidURL)
         }
 
-        return self.typedConnect(to: urlComponents, headers: headers, configuration: configuration, supportedExtensions: supportedExtensions)
+        return self.typedConnect(
+            to: urlComponents,
+            headers: headers,
+            configuration: configuration,
+            supportedExtensions: supportedExtensions
+        )
     }
 
     /// Connect the WebSocket client to the given endpoint. The WebSocket client is configured using the provied configuration.
@@ -595,7 +609,7 @@ extension WebSocketClient {
                 } else {
                     acceptedExtension = []
                 }
-                
+
                 let websocketConnectionInfo = WebSocket.ConnectionInfo(url: endpoint)
                 let websocket = WebSocket(
                     channel: channel,
@@ -621,7 +635,11 @@ extension WebSocketClient {
                     )
 
                     try channel.pipeline.syncOperations.addHandler(
-                        WebSocketHandler(websocket: websocket, configuration: configuration, extensions: acceptedExtension)
+                        WebSocketHandler(
+                            websocket: websocket,
+                            configuration: configuration,
+                            extensions: acceptedExtension
+                        )
                     )
                     self._onOpen?(websocket)
                 } catch {

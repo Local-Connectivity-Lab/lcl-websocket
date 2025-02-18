@@ -20,7 +20,6 @@ let package = Package(
         .package(url: "https://github.com/apple/swift-nio-ssl.git", from: "2.28.0"),
         .package(url: "https://github.com/apple/swift-log.git", from: "1.6.2"),
         .package(url: "https://github.com/apple/swift-atomics.git", from: "1.2.0"),
-        .package(url: "https://github.com/adam-fowler/compress-nio.git", from: "1.4.0"),
     ],
     targets: [
         .target(
@@ -40,7 +39,6 @@ let package = Package(
                 ),
                 .product(name: "Logging", package: "swift-log"),
                 .product(name: "Atomics", package: "swift-atomics"),
-                .product(name: "CompressNIO", package: "compress-nio"),
             ]
         ),
         .target(
