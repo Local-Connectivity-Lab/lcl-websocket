@@ -17,8 +17,8 @@ import NIOHTTP1
 import NIOPosix
 import NIOWebSocket
 
-/// `WebSocketExtension` is a protocol that defines how a `WebSocketFrame` can be interpreted
-/// by the receiver and how a sender should encode the frame data to be conform the rules set by the extension.
+/// `WebSocketExtension` is a protocol that defines how the data in the `WebSocketFrame` can be interpreted
+/// by the receiver and how a sender should encode the frame data to conform with the rules set by the extension negotiation.
 ///
 /// `LCLWebSocket` provides one implementation of the Per-Message Deflate extension in `PerMessageDeflateExtension`.
 /// If user wishes to implement their own custom WebSocket extension, they should implenent this protocol.
