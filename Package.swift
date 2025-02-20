@@ -51,6 +51,11 @@ let package = Package(
             name: "LCLWebSocketTests",
             dependencies: ["LCLWebSocket"]
         ),
+        .testTarget(
+            name: "IntegrationTests",
+            dependencies: ["LCLWebSocket"],
+            exclude: ["autobahn"]
+        ),
         .executableTarget(
             name: "AutobahnClient",
             dependencies: ["LCLWebSocket"]

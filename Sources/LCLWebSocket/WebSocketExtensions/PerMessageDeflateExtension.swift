@@ -187,17 +187,13 @@ public struct PerMessageDeflateExtensionOption: WebSocketExtensionOption {
         }
 
         let responses = try self.decodeHTTPHeader(httpHeaders)
-        if responses.isEmpty {
+        guard let response = responses.first else {
+            // server does not support compression
             return nil
         }
 
         guard responses.count == 1 else {
             throw WebSocketExtensionError.invalidServerResponse
-        }
-
-        guard let response = responses.first else {
-            // server does not support compression
-            return nil
         }
 
         let serverNoTakeoverOffer: Bool
@@ -521,14 +517,14 @@ extension PerMessageDeflateCompression {
     // The following code is adapted from https://github.com/apple/swift-nio-extras/blob/main/Sources/NIOHTTPCompression/HTTPCompression.swift
     final class Compressor: @unchecked Sendable {
 
-        private var stream: z_stream = z_stream()
-        private var isActive = false
+        private var stream: z_stream
+        private var isActive: Bool
 
         init(windowBits: WindowBitsValue, memoryLevel: Int = 8) throws {
+            self.stream = z_stream()
             self.stream.zalloc = nil
             self.stream.zfree = nil
             self.stream.opaque = nil
-
             self.isActive = false
 
             guard memoryLevel <= 9 && memoryLevel >= 1 else {

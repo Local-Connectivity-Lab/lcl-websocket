@@ -21,9 +21,16 @@ final class WebSocketHandler: ChannelDuplexHandler {
     typealias OutboundIn = WebSocketFrame
 
     private let websocket: WebSocket
+    
+    // the first buffer in the sequence of fragmented frames. It should be nil if the frame is not fragmented.
     private var firstBufferedFrame: WebSocketFrame?
+    
+    // the buffered frame data, aggregated together.
     private var bufferedFrameData: ByteBuffer
+    
+    // the total number of frames that are currently buffered.
     private var totalBufferedFrameCount: Int
+    
     private let configuration: LCLWebSocket.Configuration
     private let extensions: [any WebSocketExtension]
 
@@ -97,7 +104,7 @@ final class WebSocketHandler: ChannelDuplexHandler {
         // decode frame with extension, if any
         do {
             for var ext in self.extensions.reversed() {
-                if (self.firstBufferedFrame ?? frame).reservedBits == ext.reservedBits {
+                if (self.firstBufferedFrame ?? frame).reservedBits.contains(ext.reservedBits) {
                     frame = try ext.decode(frame: frame, allocator: context.channel.allocator)
                 } else {
                     logger.debug("skip decoding with extension: \(ext)")
