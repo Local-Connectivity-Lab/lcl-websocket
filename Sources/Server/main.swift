@@ -21,7 +21,8 @@ let config = LCLWebSocket.Configuration(
     leftoverBytesStrategy: .forwardBytes
 )
 
-var server = LCLWebSocket.server()
+let elg = MultiThreadedEventLoopGroup(numberOfThreads: 4)
+var server = LCLWebSocket.server(on: elg)
 server.onPing { websocket, buffer in
     print("onPing: \(buffer)")
     websocket.pong(data: buffer)

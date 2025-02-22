@@ -15,7 +15,7 @@ let package = Package(
         )
     ],
     dependencies: [
-        .package(url: "https://github.com/apple/swift-nio.git", from: "2.76.1"),
+        .package(url: "https://github.com/apple/swift-nio.git", from: "2.81.0"),
         .package(url: "https://github.com/apple/swift-nio-transport-services.git", from: "1.23.0"),
         .package(url: "https://github.com/apple/swift-nio-ssl.git", from: "2.28.0"),
         .package(url: "https://github.com/apple/swift-log.git", from: "1.6.2"),
@@ -25,6 +25,7 @@ let package = Package(
         .target(
             name: "LCLWebSocket",
             dependencies: [
+                "CLCLWebSocketZlib",
                 .product(name: "NIO", package: "swift-nio"),
                 .product(name: "NIOConcurrencyHelpers", package: "swift-nio"),
                 .product(name: "NIOWebSocket", package: "swift-nio"),
@@ -40,9 +41,20 @@ let package = Package(
                 .product(name: "Atomics", package: "swift-atomics"),
             ]
         ),
+        .target(
+            name: "CLCLWebSocketZlib",
+            linkerSettings: [
+                .linkedLibrary("z")
+            ]
+        ),
         .testTarget(
             name: "LCLWebSocketTests",
             dependencies: ["LCLWebSocket"]
+        ),
+        .testTarget(
+            name: "IntegrationTests",
+            dependencies: ["LCLWebSocket"],
+            exclude: ["autobahn", "Dockerfile"]
         ),
         .executableTarget(
             name: "AutobahnClient",

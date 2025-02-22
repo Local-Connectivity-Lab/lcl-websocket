@@ -28,3 +28,7 @@ Package.resolved
 .swiftpm
 
 .build/
+
+# auto-generated reports and logs
+Tests/integrationTests/autobahn/reports
+Tests/integrationTests/autobahn/scripts/*.log

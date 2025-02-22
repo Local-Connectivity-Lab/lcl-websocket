@@ -6,13 +6,14 @@ LCL WebSocket is a cross-platform WebSocket [[RFC 6455]](https://datatracker.iet
 
 ## Features
 
-- Conform to all [AutoBahn](https://github.com/crossbario/autobahn-testsuite) base cases
+- Conform to all [AutoBahn](https://github.com/crossbario/autobahn-testsuite) cases
 - High-performance WebSocket client and server, on top of SwiftNIO
 - TLS/SSL support
 - Thread-safe
 - Cross-platform
 - Customizable configurations
 - Comprehensive error handling
+- Support WebSocket per-message deflate extension (RFC 7692)
 
 ## Requirements
 - Swift 5.9+
@@ -89,12 +90,12 @@ try server.listen(host: "127.0.0.1", port: 8080, configuration: config).wait()
 
 
 ## TODO
-- [ ] Support Swift Concurrency
-- [ ] Support WebSocket Compression Extension
+- [x] Support Swift Concurrency
+- [x] Support WebSocket Compression Extension
 
 
 ## Contributing
 Any contribution and pull requests are welcome! However, before you plan to implement some features or try to fix an uncertain issue, it is recommended to open a discussion first. You can also join our [Discord channel](https://discord.com/invite/gn4DKF83bP), or visit our [website](https://seattlecommunitynetwork.org/).
 
 ## License
-LCLPing is released under Apache License. See [LICENSE](/LICENSE) for more details.
+lcl-websocket is released under Apache License. See [LICENSE](/LICENSE) for more details.

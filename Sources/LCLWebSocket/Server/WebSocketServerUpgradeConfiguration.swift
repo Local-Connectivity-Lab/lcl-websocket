@@ -32,9 +32,9 @@ public struct WebSocketServerUpgradeConfiguration: Sendable {
         onUpgradeComplete: @escaping @Sendable (ChannelHandlerContext) -> Void,
         rejectResponse: String? = nil
     ) {
-        self.shouldUpgrade = shouldUpgrade
         self.onUpgradeComplete = onUpgradeComplete
         self.rejectResponse = rejectResponse
+        self.shouldUpgrade = shouldUpgrade
     }
 }
 
@@ -46,11 +46,11 @@ extension WebSocketServerUpgradeConfiguration {
     public static let defaultConfiguration: WebSocketServerUpgradeConfiguration = Self(
         shouldUpgrade: { channel, requestHead in
             let httpHeaders = HTTPHeaders([("User-Agent", "LCLWebSocketServer")])
-            logger.debug("received  request header: \(requestHead)")
+            logger.debug("received request header: \(requestHead)")
             return channel.eventLoop.makeSucceededFuture(httpHeaders)
         },
         onUpgradeComplete: { _ in
-            logger.info("server upgraded. onUpgradeComplete")
+            logger.info("server upgraded.")
         }
     )
 }

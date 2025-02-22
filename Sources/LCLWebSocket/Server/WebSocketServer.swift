@@ -101,11 +101,21 @@ public struct WebSocketServer: Sendable, LCLWebSocketListenable {
     ///   - host: the host IP address to listen to
     ///   - port: the port at which the WebSocket server will be listening on
     ///   - configuration: the configuration used to configure the WebSocket server
+    ///   - supportedExtensions: the WebSocket extensions that this server supports.
     /// - Returns: a `EventLoopFuture` that will be resolved once the server is closed.
-    public func listen(host: String, port: Int, configuration: LCLWebSocket.Configuration) -> EventLoopFuture<Void> {
+    public func listen(
+        host: String,
+        port: Int,
+        configuration: LCLWebSocket.Configuration,
+        supportedExtensions: [any WebSocketExtensionOption] = []
+    ) -> EventLoopFuture<Void> {
         do {
             let resolvedAddress = try SocketAddress.makeAddressResolvingHost(host, port: port)
-            return self.listen(to: resolvedAddress, configuration: configuration)
+            return self.listen(
+                to: resolvedAddress,
+                configuration: configuration,
+                supportedExtensions: supportedExtensions
+            )
         } catch {
             return self.eventloopGroup.any().makeFailedFuture(LCLWebSocketError.invalidURL)
         }
@@ -116,23 +126,32 @@ public struct WebSocketServer: Sendable, LCLWebSocketListenable {
     /// - Parameters:
     ///   - address: The address to listen to
     ///   - configuration: the configuration used to configure the WebSocket server
+    ///   - supportedExtensions: the WebSocket extensions that this server supports.
     /// - Returns: a `EventLoopFuture` that will be resolved once the server is closed.
-    public func listen(to address: SocketAddress, configuration: LCLWebSocket.Configuration) -> EventLoopFuture<Void> {
+    public func listen(
+        to address: SocketAddress,
+        configuration: LCLWebSocket.Configuration,
+        supportedExtensions: [any WebSocketExtensionOption] = []
+    ) -> EventLoopFuture<Void> {
         self.makeBootstrapAndBind(with: configuration, resolvedAddress: address) { channel in
-            logger.debug("child channel: \(channel)")
+            logger.info("Servicing new connection: \(String(describing: channel.remoteAddress))")
             do {
                 try self.initializeChildChannel(using: configuration, on: channel)
             } catch {
                 return channel.eventLoop.makeFailedFuture(error)
             }
 
-            return self.configureWebSocketServerUpgrade(on: channel, configuration: configuration)
+            return self.configureWebSocketServerUpgrade(
+                on: channel,
+                configuration: configuration,
+                supportedExtensions: supportedExtensions
+            )
         }.flatMap { channel in
             channel.closeFuture
         }
     }
 
-    /// Shutdown the WebSocket client.
+    /// Shutdown the WebSocket server.
     ///
     /// - Parameters:
     ///     - callback: callback function that will be invoked when an error occurred during shutdown
@@ -143,6 +162,7 @@ public struct WebSocketServer: Sendable, LCLWebSocketListenable {
             ordering: .acquiringAndReleasing
         )
         if exchanged {
+            logger.info("WebSocket server is shutting down ...")
             self.eventloopGroup.shutdownGracefully(callback)
         } else {
             logger.info("WebSocket server already shutdown")
@@ -151,18 +171,47 @@ public struct WebSocketServer: Sendable, LCLWebSocketListenable {
 
     private func configureWebSocketServerUpgrade(
         on channel: Channel,
-        configuration: LCLWebSocket.Configuration
+        configuration: LCLWebSocket.Configuration,
+        supportedExtensions: [any WebSocketExtensionOption]
     ) -> EventLoopFuture<Void> {
         let upgrader = NIOWebSocketServerUpgrader(
             maxFrameSize: configuration.maxFrameSize,
             automaticErrorHandling: false,
             shouldUpgrade: self.serverUpgradeConfiguration.shouldUpgrade
-        ) { channel, httpRequestHead in
+        ) { channel, _ in
+
+            let acceptedExtensions: [any WebSocketExtensionOption]
+            do {
+                // remove all handlers added by LCLWebSocketServer
+                let methodValidationHandler = try channel.pipeline.syncOperations.handler(
+                    type: HTTPRequestMethodValidationHandler.self
+                )
+                let requestErrorHandler = try channel.pipeline.syncOperations.handler(
+                    type: HTTPServerRequestErrorHandler.self
+                )
+                let upgradeHandler = try channel.pipeline.syncOperations.handler(
+                    type: HTTPServerUpgradeHandler.self
+                )
+                let extensionHandler = try channel.pipeline.syncOperations.handler(
+                    type: WebSocketExtensionNegotiationRequestHandler.self
+                )
+                acceptedExtensions = extensionHandler.acceptedExtensions
+
+                channel.pipeline.syncOperations.removeHandler(methodValidationHandler, promise: nil)
+                channel.pipeline.syncOperations.removeHandler(requestErrorHandler, promise: nil)
+                channel.pipeline.syncOperations.removeHandler(upgradeHandler, promise: nil)
+                channel.pipeline.syncOperations.removeHandler(extensionHandler, promise: nil)
+
+            } catch {
+                return channel.eventLoop.makeFailedFuture(error)
+            }
+
+            let url = channel.remoteAddress?.ipAddress.flatMap { URLComponents(string: $0) }
             let websocket = WebSocket(
                 channel: channel,
                 type: .server,
                 configuration: configuration,
-                connectionInfo: nil
+                connectionInfo: .init(url: url)
             )
             websocket.onPing(self._onPing)
             websocket.onPong(self._onPong)
@@ -171,22 +220,6 @@ public struct WebSocketServer: Sendable, LCLWebSocketListenable {
             websocket.onClosing(self._onClosing)
 
             do {
-
-                // remove all handlers added by LCLWebSocketServer
-                let methodValidationHandlerCtx = try channel.pipeline.syncOperations.context(
-                    handlerType: HTTPRequestMethodValidationHandler.self
-                )
-                let requestErrorHandlerCtx = try channel.pipeline.syncOperations.context(
-                    handlerType: HTTPServerRequestErrorHandler.self
-                )
-                let upgradeHandlerCtx = try channel.pipeline.syncOperations.context(
-                    handlerType: HTTPServerUpgradeHandler.self
-                )
-
-                _ = channel.pipeline.syncOperations.removeHandler(context: methodValidationHandlerCtx)
-                _ = channel.pipeline.syncOperations.removeHandler(context: requestErrorHandlerCtx)
-                _ = channel.pipeline.syncOperations.removeHandler(context: upgradeHandlerCtx)
-
                 try channel.syncOptions?.setOption(
                     .writeBufferWaterMark,
                     value: .init(
@@ -195,7 +228,7 @@ public struct WebSocketServer: Sendable, LCLWebSocketListenable {
                     )
                 )
                 try channel.pipeline.syncOperations.addHandler(
-                    WebSocketHandler(websocket: websocket, configuration: configuration)
+                    WebSocketHandler(websocket: websocket, configuration: configuration, extensions: acceptedExtensions)
                 )
                 self._onOpen?(websocket)
                 return channel.eventLoop.makeSucceededVoidFuture()
@@ -210,14 +243,20 @@ public struct WebSocketServer: Sendable, LCLWebSocketListenable {
         )
         do {
             try channel.pipeline.syncOperations.configureHTTPServerPipeline(withServerUpgrade: serverUpgradeConfig)
-            let protocolErrorHandler = try channel.pipeline.syncOperations.handler(
-                type: HTTPServerProtocolErrorHandler.self
+            let httpServerUpgradeHandler = try channel.pipeline.syncOperations.handler(
+                type: HTTPServerUpgradeHandler.self
             )
             try channel.pipeline.syncOperations.addHandler(
                 HTTPRequestMethodValidationHandler(allowedMethods: [.GET]),
-                position: .after(protocolErrorHandler)
+                position: .before(httpServerUpgradeHandler)
+            )
+
+            try channel.pipeline.syncOperations.addHandler(
+                WebSocketExtensionNegotiationRequestHandler(supportedExtensions: supportedExtensions),
+                position: .before(httpServerUpgradeHandler)
             )
             try channel.pipeline.syncOperations.addHandler(HTTPServerRequestErrorHandler(), position: .last)
+
             return channel.eventLoop.makeSucceededVoidFuture()
         } catch {
             return channel.eventLoop.makeFailedFuture(error)
@@ -347,7 +386,7 @@ extension WebSocketServer {
         configuration: LCLWebSocket.Configuration
     ) -> EventLoopFuture<Void> {
         self.makeBootstrapAndBind(with: configuration, resolvedAddress: address) { channel in
-            logger.debug("child channel: \(channel)")
+            logger.info("Servicing new connection: \(String(describing: channel.remoteAddress))")
             do {
                 try self.initializeChildChannel(using: configuration, on: channel)
             } catch {
@@ -365,37 +404,50 @@ extension WebSocketServer {
         on channel: Channel,
         configuration: LCLWebSocket.Configuration
     ) -> EventLoopFuture<Void> {
-        let upgrader = NIOTypedWebSocketServerUpgrader(
+        let upgrader: NIOTypedWebSocketServerUpgrader<UpgradeResult> = NIOTypedWebSocketServerUpgrader(
             maxFrameSize: configuration.maxFrameSize,
             shouldUpgrade: self.serverUpgradeConfiguration.shouldUpgrade
         ) { channel, httpRequestHead in
+
+            let acceptedExtensions: [any WebSocketExtensionOption]
+            do {
+                // remove all handlers added by LCLWebSocketServer
+                let methodValidationHandler = try channel.pipeline.syncOperations.handler(
+                    type: HTTPRequestMethodValidationHandler.self
+                )
+                let requestErrorHandler = try channel.pipeline.syncOperations.handler(
+                    type: HTTPServerRequestErrorHandler.self
+                )
+                let upgradeHandler = try channel.pipeline.syncOperations.handler(
+                    type: HTTPServerUpgradeHandler.self
+                )
+                let extensionHandler = try channel.pipeline.syncOperations.handler(
+                    type: WebSocketExtensionNegotiationRequestHandler.self
+                )
+                acceptedExtensions = extensionHandler.acceptedExtensions
+
+                channel.pipeline.syncOperations.removeHandler(methodValidationHandler, promise: nil)
+                channel.pipeline.syncOperations.removeHandler(requestErrorHandler, promise: nil)
+                channel.pipeline.syncOperations.removeHandler(upgradeHandler, promise: nil)
+                channel.pipeline.syncOperations.removeHandler(extensionHandler, promise: nil)
+
+            } catch {
+                return channel.eventLoop.makeFailedFuture(error)
+            }
+
+            let url = channel.remoteAddress?.ipAddress.flatMap { URLComponents(string: $0) }
+
             let websocket = WebSocket(
                 channel: channel,
                 type: .server,
                 configuration: configuration,
-                connectionInfo: nil
+                connectionInfo: .init(url: url)
             )
             websocket.onPing(self._onPing)
             websocket.onPong(self._onPong)
             websocket.onText(self._onText)
             websocket.onBinary(self._onBinary)
             do {
-
-                // remove all handlers added by LCLWebSocketServer
-                let methodValidationHandlerCtx = try channel.pipeline.syncOperations.context(
-                    handlerType: HTTPRequestMethodValidationHandler.self
-                )
-                let requestErrorHandlerCtx = try channel.pipeline.syncOperations.context(
-                    handlerType: HTTPServerRequestErrorHandler.self
-                )
-                let upgradeHandlerCtx = try channel.pipeline.syncOperations.context(
-                    handlerType: HTTPServerUpgradeHandler.self
-                )
-
-                _ = channel.pipeline.syncOperations.removeHandler(context: methodValidationHandlerCtx)
-                _ = channel.pipeline.syncOperations.removeHandler(context: requestErrorHandlerCtx)
-                _ = channel.pipeline.syncOperations.removeHandler(context: upgradeHandlerCtx)
-
                 try channel.syncOptions?.setOption(
                     .writeBufferWaterMark,
                     value: .init(
@@ -404,7 +456,7 @@ extension WebSocketServer {
                     )
                 )
                 try channel.pipeline.syncOperations.addHandler(
-                    WebSocketHandler(websocket: websocket, configuration: configuration)
+                    WebSocketHandler(websocket: websocket, configuration: configuration, extensions: acceptedExtensions)
                 )
                 return channel.eventLoop.makeSucceededFuture(UpgradeResult.websocket)
             } catch {
@@ -413,14 +465,15 @@ extension WebSocketServer {
         }
 
         let serverUpgradeConfig = NIOTypedHTTPServerUpgradeConfiguration(upgraders: [upgrader]) { channel in
-            logger.debug("server upgrade failed")
+            logger.error("server upgrade failed")
             return channel.eventLoop.makeSucceededFuture(UpgradeResult.notUpgraded(nil))
         }
 
         do {
-            let upgradeResult = try channel.pipeline.syncOperations.configureUpgradableHTTPServerPipeline(
-                configuration: .init(upgradeConfiguration: serverUpgradeConfig)
-            )
+            let upgradeResult: EventLoopFuture<UpgradeResult> = try channel.pipeline.syncOperations
+                .configureUpgradableHTTPServerPipeline(
+                    configuration: .init(upgradeConfiguration: serverUpgradeConfig)
+                )
             return upgradeResult.flatMap { result in
                 switch result {
                 case .websocket:
@@ -503,7 +556,6 @@ extension WebSocketServer {
                 context.channel.write(HTTPServerResponsePart.head(responseHead), promise: nil)
                 context.channel.writeAndFlush(HTTPServerResponsePart.end(nil), promise: nil)
                 context.fireErrorCaught(LCLWebSocketError.methodNotAllowed)
-                context.close(mode: .all, promise: nil)
             }
         }
     }
@@ -557,6 +609,8 @@ extension WebSocketServer {
             logger.debug("closing channel due to error \(error). response head \(responseHead)")
             context.channel.write(HTTPServerResponsePart.head(responseHead), promise: nil)
             context.channel.writeAndFlush(HTTPServerResponsePart.end(nil), promise: nil)
+
+            // FIXME: this line will cause crash when using NIOListeningBootstrap from NIOTransportService with ioOnClosedChannel.
             context.close(mode: .all, promise: nil)
         }
     }
