@@ -19,7 +19,7 @@ import NIOPosix
 struct AutohahnServer {
 
     static let config = LCLWebSocket.Configuration(
-        maxFrameSize: 1 << 16,
+        maxFrameSize: 1 << 25,
         autoPingConfiguration: .disabled,
         leftoverBytesStrategy: .forwardBytes
     )

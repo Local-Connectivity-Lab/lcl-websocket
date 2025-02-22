@@ -70,7 +70,6 @@ public struct PerMessageDeflateExtensionOption: WebSocketExtensionOption {
 
     let isServer: Bool
 
-    
     /// Initialize the `PerMessageDeflateExtensionOption`.
     /// - Parameters:
     ///   - isServer: indicate whether the extension option is used by WebSocket server or client.
@@ -78,7 +77,7 @@ public struct PerMessageDeflateExtensionOption: WebSocketExtensionOption {
     ///   - clientNoTakeover: the `client_no_context_takeover` parameter used in the extension. By default, this parameter is set to false. If you want to enable this flag, set the value to true.
     ///   - serverMaxWindowBits: the `server_max_window_bits` parameter used in the extension to define the LZ77 sliding window size for the server. By default this value is set to `nil`, which implies that the client can compressed using an LZ77 sliding window of up to 32,768 bytes. This parameter can have a value between 8 and 15, inclusive.
     ///   - clientMaxWindowBits: the `client_max_window_bits` parameter used in the extension to define the LZ77 sliding window size for the client. By default this value is set to `nil`, which implies that the server server can receive messages compressed using an LZ77 sliding window of up to 32,768 bytes. This parameter can have a value between 8 and 15, inclusive.
-    ///   - maxDecompressionSize: the maximum amount of bytes that can be decompressed from a compressed message. Default value is 16,777,216 bytes.
+    ///   - maxDecompressionSize: the maximum amount of bytes that can be decompressed from a compressed message. Default value is `Int.max` bytes.
     ///   - memoryLevel: the zlib memory footprint. Larger number means more memory footprint and faster speed. Smaller value means less memory footprint and slower speed. This parameter has value between 1 and 9.
     public init(
         isServer: Bool,
@@ -86,7 +85,7 @@ public struct PerMessageDeflateExtensionOption: WebSocketExtensionOption {
         clientNoTakeover: Bool = false,
         serverMaxWindowBits: Int? = nil,
         clientMaxWindowBits: Int? = nil,
-        maxDecompressionSize: Int = 1 << 24,
+        maxDecompressionSize: Int = .max,
         memoryLevel: Int = 8
     ) {
         if let clientMaxWindowBits = clientMaxWindowBits {
@@ -375,7 +374,7 @@ extension PerMessageDeflateExtensionOption: CustomStringConvertible {
 
 public struct PerMessageDeflateCompression {
     private static let emptyDeflateBlock: [UInt8] = [0x00, 0x00, 0xff, 0xff]
-    
+
     public var reservedBits: WebSocketFrame.ReservedBits
 
     private let serverNoTakeover: Bool
@@ -670,6 +669,7 @@ extension PerMessageDeflateCompression {
 
         private func shutdown() {
             if self.isActive {
+                logger.debug("decompressor shutdown")
                 self.isActive = false
                 CLCLWebSocketZlib.inflateEnd(&self.stream)
             }
@@ -682,16 +682,16 @@ extension PerMessageDeflateCompression {
     enum DecompressionError: Error {
         /// The decompressed data exceeds the allowed limit.
         case limitExceeded
-        
+
         /// Initialization of the decompression stream failed.
         case initializationFailed(Int)
-        
+
         /// Inflation (decompression) failed at a specific point.
         case inflationFailed(Int)
-        
+
         /// The decompression process did not complete successfully.
         case inflationNotFinished
-        
+
         /// Resetting the decompression stream failed.
         case resetFailed(Int)
     }

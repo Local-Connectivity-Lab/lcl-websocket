@@ -151,7 +151,7 @@ public struct WebSocketServer: Sendable, LCLWebSocketListenable {
         }
     }
 
-    /// Shutdown the WebSocket client.
+    /// Shutdown the WebSocket server.
     ///
     /// - Parameters:
     ///     - callback: callback function that will be invoked when an error occurred during shutdown
@@ -162,6 +162,7 @@ public struct WebSocketServer: Sendable, LCLWebSocketListenable {
             ordering: .acquiringAndReleasing
         )
         if exchanged {
+            logger.info("WebSocket server is shutting down ...")
             self.eventloopGroup.shutdownGracefully(callback)
         } else {
             logger.info("WebSocket server already shutdown")

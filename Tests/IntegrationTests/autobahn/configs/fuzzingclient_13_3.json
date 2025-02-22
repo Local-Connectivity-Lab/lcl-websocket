@@ -1,0 +1,13 @@
+{
+    "outdir": "../reports/servers",
+    "servers": [
+        {
+            "agent": "LCLWebSocketServer",
+            "url": "ws://host.docker.internal:9006"
+        }
+    ],
+    "cases": ["13.3.*"],
+    "exclude-cases": [
+    ],
+    "exclude-agent-cases": {}
+}

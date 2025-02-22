@@ -19,7 +19,7 @@ import NIOPosix
 struct TestWebSocketClient {
 
     static let config = LCLWebSocket.Configuration(
-        maxFrameSize: 1 << 16,
+        maxFrameSize: 1 << 24,
         autoPingConfiguration: .disabled,
         leftoverBytesStrategy: .forwardBytes
     )
@@ -57,7 +57,8 @@ struct TestWebSocketClient {
             }
             try client.connect(
                 to: "ws://\(Self.serverAddress):\(Self.serverPort)/runCase?case=\(i)&agent=\(Self.agentName)",
-                configuration: Self.config
+                configuration: Self.config,
+                supportedExtensions: []
             ).wait()
         }
 

@@ -21,16 +21,16 @@ final class WebSocketHandler: ChannelDuplexHandler {
     typealias OutboundIn = WebSocketFrame
 
     private let websocket: WebSocket
-    
+
     // the first buffer in the sequence of fragmented frames. It should be nil if the frame is not fragmented.
     private var firstBufferedFrame: WebSocketFrame?
-    
+
     // the buffered frame data, aggregated together.
     private var bufferedFrameData: ByteBuffer
-    
+
     // the total number of frames that are currently buffered.
     private var totalBufferedFrameCount: Int
-    
+
     private let configuration: LCLWebSocket.Configuration
     private let extensions: [any WebSocketExtension]
 
