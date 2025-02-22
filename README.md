@@ -90,8 +90,8 @@ try server.listen(host: "127.0.0.1", port: 8080, configuration: config).wait()
 
 
 ## TODO
-- [x] Support Swift Concurrency
 - [x] Support WebSocket Compression Extension
+- [ ] Support Swift Concurrency
 
 
 ## Contributing
