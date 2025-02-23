@@ -410,19 +410,30 @@ public final class WebSocket: Sendable {
         if data.readableBytes == 0 {
             return .success("")
         }
+        
+        func getUTF8String(at index: Int, length: Int) throws -> String {
+            guard let bytes = data.getData(at: data.readerIndex, length: data.readableBytes),
+                let text = String(data: bytes, encoding: .utf8)
+            else {
+                throw LCLWebSocketError.invalidUTF8String
+            }
+            
+            return text
+        }
 
         do {
+            #if compiler(>=6.0)
             if #available(macOS 15, iOS 18, tvOS 18, watchOS 11, *) {
                 let text = try data.getUTF8ValidatedString(at: data.readerIndex, length: data.readableBytes) ?? ""
                 return .success(text)
             } else {
-                guard let bytes = data.getData(at: data.readerIndex, length: data.readableBytes),
-                    let text = String(data: bytes, encoding: .utf8)
-                else {
-                    throw LCLWebSocketError.invalidUTF8String
-                }
+                let text = try getUTF8String(at: data.readerIndex, length: data.readableBytes)
                 return .success(text)
             }
+            #else
+            let text = try getUTF8String(at: data.readerIndex, length: data.readableBytes)
+            return .success(text)
+            #endif
 
         } catch {
             return .failure(error)
@@ -544,7 +555,7 @@ extension WebSocket {
 extension WebSocket {
 
     /// A collection of information that the WebSocket uses to make the connection
-    public struct ConnectionInfo: Sendable {
+    public struct ConnectionInfo {
 
         /// The URL that the WebSocket client connects to
         let url: URLComponents?
@@ -558,3 +569,7 @@ extension WebSocket {
         }
     }
 }
+
+#if compiler(>=6.0)
+extension WebSocket.ConnectionInfo: Sendable { }
+#endif
