@@ -7,7 +7,7 @@ ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 # Define volumes
 CONFIG_DIR="$ROOT_DIR/configs"
 REPORTS_DIR="$ROOT_DIR/reports"
-SERVER_PORT=9002
+FUZZING_CLIENT_NAME="fuzzingclient"
 
 echo $CONFIG_DIR
 echo $REPORTS_DIR
@@ -54,7 +54,23 @@ if [ "${#test_cases[@]}" -ne "${#json_files[@]}" ] || [ "${#test_cases[@]}" -ne 
   exit 1
 fi
 
-# Example usage: loop over the array and print each test case
+cleanup() {
+    echo "Cleaning up..."
+
+    # Loop through all the possible server ports and kill processes bound to them
+    for port in "${server_ports[@]}"; do
+        # Check if a process is bound to this port
+        server_pid=$(lsof -n -i :$port -t)
+        if [ -n "$server_pid" ]; then
+            echo "Killing process with PID $server_pid on port $port..."
+            kill -9 "$server_pid" &>/dev/null || true
+        else
+            echo "No process found on port $port."
+        fi
+    done
+}
+trap cleanup EXIT
+
 for i in "${!test_cases[@]}"; do
     test_case=${test_cases[$i]}
     json_file=${json_files[$i]}
@@ -66,7 +82,7 @@ for i in "${!test_cases[@]}"; do
 
 
     # Run the server in the background
-     swift test -c release --filter "$test_case" &> "$log_file" &
+    swift test -c release --filter "$test_case" &> "$log_file" &
 
     # Wait for the server to bind to the port
     timeout=30  # Max wait time for the server to start
@@ -95,14 +111,20 @@ for i in "${!test_cases[@]}"; do
 
     sleep 2
 
-    docker run -it --rm \
+    docker run -d --rm \
     -v "$CONFIG_DIR:/config" \
     -v "$REPORTS_DIR:/reports" \
     -p 9001:9001 \
-    --name fuzzingclient \
-    crossbario/autobahn-testsuite wstest --mode fuzzingclient --spec /config/$json_file
+    --name "$FUZZING_CLIENT_NAME" \
+    crossbario/autobahn-testsuite wstest --mode fuzzingclient --spec /config/$json_file &
+    
+    sleep 2
+    docker_id=$(docker ps -q --filter "name=$FUZZING_CLIENT_NAME")
+    echo "Docker client started with ID: $docker_id"
+    
+    docker wait "$docker_id"
 
-    kill -9 $PID
+    kill -9 $PID &>/dev/null || true
 
     echo "=========================== Test $test_case Done ============================"
     sleep 5

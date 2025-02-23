@@ -150,11 +150,20 @@ final class WebSocketHandler: ChannelDuplexHandler {
             default:
                 self.websocket.handleFrame(frame)
             }
-        } catch LCLWebSocketError.invalidUTF8String, is ByteBuffer.ReadUTF8ValidationError {
+        } catch LCLWebSocketError.invalidUTF8String {
             self.websocket.close(code: .dataInconsistentWithMessage, promise: nil)
             context.close(mode: .all, promise: nil)
             clearBufferedFrames()
         } catch {
+            #if compiler(>=6.0)
+            if error is ByteBuffer.ReadUTF8ValidationError {
+                self.websocket.close(code: .dataInconsistentWithMessage, promise: nil)
+                context.close(mode: .all, promise: nil)
+                clearBufferedFrames()
+                return
+            }
+            #endif
+            
             let reason = (error as? LCLWebSocketError)?.description
             self.websocket.close(code: .protocolError, reason: reason, promise: nil)
             context.close(mode: .all, promise: nil)
